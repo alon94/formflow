@@ -82,6 +82,20 @@ src/       React 19 + TypeScript, dnd-kit, TanStack Query, Recharts, lucide
    לדשבורד בטאב הראשון בזמן אמת עם תגית VIP.
 4. נסו לשלוח שוב עם אותו מייל — השרת ידחה (ולידציית ייחודיות).
 
+## פריסה ל-Vercel (דמו סטטי)
+
+הרפו מוכן לייבוא ישיר: `vercel.json` מגדיר SPA rewrites, ו-better-sqlite3 הוא
+תלות אופציונלית כך שההתקנה לא נכשלת בסביבת Build ללא כלי קומפילציה.
+
+1. https://vercel.com/new ← Import Git Repository ← בחרו את `formflow`
+2. Vercel מזהה Vite אוטומטית (Build: `npm run build`, Output: `dist`) — פשוט Deploy
+
+בפריסה סטטית אין את שרת ה-API, ולכן האפליקציה עוברת ל**מצב דמו** אוטומטי:
+כל המסכים והתהליכים פועלים עם נתוני הדמו, ושליחת הטופס הציבורי מדמה את צינור
+ההתראות עם חיווי "מצב דמו". להרצה מלאה (SQLite, ‏SSE, ייצוא, Webhooks) צריך
+אירוח עם תהליך Node מתמשך — Render / Railway / Fly — עם `npm run server`
+והגשת ה-frontend מאותו שרת או עם proxy.
+
 ## הערות
 
 - הלוגו placeholder וקטורי — להחליף ב-SVG הרשמי בכל המופעים.

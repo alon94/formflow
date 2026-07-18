@@ -20,7 +20,7 @@ const PAGE_TITLES: Record<number, string> = {
 type Values = Record<string, string>
 
 export default function PublicFormScreen() {
-  const { fields, rules, branding, formName } = useStore()
+  const { fields, rules, branding, formName, notif } = useStore()
   const isConference = formName.includes('כנס')
 
   /* theme resolution: form setting (אוטומטי/בהיר/כהה) + local visitor override */
@@ -50,6 +50,7 @@ export default function PublicFormScreen() {
   const [result, setResult] = useState<{
     submission: Submission
     notifications: NotificationEntry[]
+    demo?: boolean
   } | null>(null)
   const inputRefs = useRef<Record<string, HTMLElement | null>>({})
   const restored = useRef(false)
@@ -143,7 +144,54 @@ export default function PublicFormScreen() {
           80,
         )
       } else {
-        setSubmitError('לא הצלחנו לשלוח את הטופס — ודאו ששרת ה-API רץ ונסו שוב')
+        /* no API (e.g. static hosting) — simulate the pipeline locally as demo */
+        const now = new Date().toISOString()
+        const emailField = fields.find((f) => f.type === 'email')
+        const email = emailField ? (values[emailField.fieldKey] ?? '') : ''
+        const name =
+          `${values['first_name'] ?? ''} ${values['last_name'] ?? ''}`.trim() || 'ממלא/ת'
+        const notifications: NotificationEntry[] = []
+        if (notif.confirmEnabled && email) {
+          notifications.push({
+            id: 'demo-confirm',
+            submissionId: 1129,
+            channel: 'email',
+            recipient: email,
+            status: 'delivered',
+            note: 'מייל אישור לממלא',
+            at: now,
+          })
+        }
+        if (notif.ownerEnabled) {
+          notif.recipients.forEach((r, i) =>
+            notifications.push({
+              id: `demo-owner-${i}`,
+              submissionId: 1129,
+              channel: 'email',
+              recipient: r,
+              status: 'delivered',
+              note: 'מייל התראה לבעל הטופס',
+              at: now,
+            }),
+          )
+        }
+        localStorage.removeItem(DRAFT_KEY)
+        setResult({
+          submission: {
+            id: 1129,
+            values,
+            name,
+            email,
+            track: values['track'] ?? '—',
+            tags: [],
+            status: 'new',
+            notes: '',
+            submittedAt: now,
+          },
+          notifications,
+          demo: true,
+        })
+        window.scrollTo({ top: 0 })
       }
     },
   })
@@ -406,6 +454,11 @@ export default function PublicFormScreen() {
           </span>
           <h1>ההרשמה נקלטה!</h1>
           <span className="sub-id-chip">הרשמה מס׳ {result.submission.id}</span>
+          {result.demo && (
+            <div className="demo-hint">
+              מצב דמו סטטי — האתר רץ ללא שרת ה-API, כך שהשליחה מדומה ולא נשמרת
+            </div>
+          )}
           <p>
             {isConference ? 'נתראה ב-12 בנובמבר במרכז הכנסים תל אביב 🎉' : 'תודה שמילאתם — הפרטים נקלטו אצלנו 🎉'}
           </p>
