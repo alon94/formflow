@@ -1,3 +1,4 @@
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Calendar, ChevronDown, Search } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
@@ -13,16 +14,11 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import {
-  chartByDay,
-  chartByMonth,
-  chartByWeek,
-  liveSubmissionsPool,
-  trackSplit,
-  workshopInterest,
-} from '../lib/data'
+import SubmissionDrawer from '../components/SubmissionDrawer'
+import { api, type SubmissionFilters } from '../lib/api'
+import { relTime, seedSubmissions } from '../lib/data'
 import { useStore } from '../lib/store'
-import type { HandleStatus } from '../lib/types'
+import type { AnalyticsPayload, HandleStatus } from '../lib/types'
 import type { FormShellContext } from './FormShell'
 
 const HANDLE_LABEL: Record<HandleStatus, string> = {
@@ -48,102 +44,150 @@ const CHART_COLORS = {
   },
 }
 
-type Range = 'day' | 'week' | 'month'
-
-const RANGE_DATA: Record<Range, { label: string; value: number }[]> = {
-  day: chartByDay,
-  week: chartByWeek,
-  month: chartByMonth,
+const FALLBACK_ANALYTICS: AnalyticsPayload = {
+  total: 128,
+  today: 14,
+  completion: 82,
+  avgTime: '2:41',
+  nps: 46,
+  topSource: { name: 'וואטסאפ', share: 44 },
+  timeline: {
+    day: [3, 5, 8, 7, 9, 12, 11, 8, 6, 9, 12, 15, 13, 11, 14, 18].map((v, i) => ({
+      label: `${String(i + 1).padStart(2, '0')}/07`,
+      value: v,
+    })),
+    week: [
+      { label: 'שבוע 1', value: 22 },
+      { label: 'שבוע 2', value: 35 },
+      { label: 'שבוע 3', value: 41 },
+      { label: 'שבוע 4', value: 30 },
+    ],
+    month: [
+      { label: 'אפריל', value: 14 },
+      { label: 'מאי', value: 48 },
+      { label: 'יוני', value: 66 },
+      { label: 'יולי', value: 128 },
+    ],
+  },
+  trackSplit: [
+    { name: 'מוצר וניהול', value: 46 },
+    { name: 'פיתוח', value: 30 },
+    { name: 'עיצוב', value: 24 },
+  ],
+  workshopInterest: [
+    { label: '1', value: 9 },
+    { label: '2', value: 16 },
+    { label: '3', value: 24 },
+    { label: '4', value: 46 },
+    { label: '5', value: 33 },
+  ],
 }
 
+type Range = 'day' | 'week' | 'month'
+
 export default function ResponsesScreen() {
-  const { submissions, addLiveSubmission, theme } = useStore()
+  const { theme } = useStore()
   const { setExportHandler } = useOutletContext<FormShellContext>()
+  const queryClient = useQueryClient()
   const [range, setRange] = useState<Range>('day')
   const [search, setSearch] = useState('')
   const [trackFilter, setTrackFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [openId, setOpenId] = useState<number | null>(null)
+  const [flashId, setFlashId] = useState<number | null>(null)
   const colors = CHART_COLORS[theme]
 
-  /* simulated realtime feed (WebSocket/SSE in production) */
-  const poolIndex = useRef(0)
-  useEffect(() => {
-    const t = window.setInterval(() => {
-      addLiveSubmission(liveSubmissionsPool[poolIndex.current % liveSubmissionsPool.length])
-      poolIndex.current += 1
-    }, 9000)
-    return () => window.clearInterval(t)
-  }, [addLiveSubmission])
-
-  const filtered = useMemo(
-    () =>
-      submissions.filter((s) => {
-        const q = search.trim()
-        if (q && !s.name.includes(q) && !s.email.includes(q)) return false
-        if (trackFilter !== 'all' && s.track !== trackFilter) return false
-        if (statusFilter !== 'all' && s.status !== statusFilter) return false
-        return true
-      }),
-    [submissions, search, trackFilter, statusFilter],
+  const filters: SubmissionFilters = useMemo(
+    () => ({ q: search.trim(), track: trackFilter, status: statusFilter }),
+    [search, trackFilter, statusFilter],
   )
 
-  /* export respects the active filters (per spec) */
+  const { data: subsData, isError: subsError } = useQuery({
+    queryKey: ['submissions', filters],
+    queryFn: () => api.getSubmissions(filters),
+    placeholderData: keepPreviousData,
+  })
+
+  const { data: analyticsData } = useQuery({
+    queryKey: ['analytics'],
+    queryFn: api.getAnalytics,
+  })
+
+  const analytics = analyticsData ?? FALLBACK_ANALYTICS
+  const submissions = subsData?.items ?? (subsError ? seedSubmissions : [])
+
+  /* realtime via SSE (spec §4.6.2) */
+  const flashTimer = useRef<number | undefined>(undefined)
+  useEffect(() => {
+    const source = new EventSource(api.eventsUrl())
+    const onCreated = (e: MessageEvent) => {
+      try {
+        const { submission } = JSON.parse(e.data) as { submission: { id: number } }
+        setFlashId(submission.id)
+        window.clearTimeout(flashTimer.current)
+        flashTimer.current = window.setTimeout(() => setFlashId(null), 2500)
+      } catch {
+        /* ignore malformed frame */
+      }
+      queryClient.invalidateQueries({ queryKey: ['submissions'] })
+      queryClient.invalidateQueries({ queryKey: ['analytics'] })
+    }
+    const onUpdated = () => {
+      queryClient.invalidateQueries({ queryKey: ['submissions'] })
+    }
+    source.addEventListener('submission.created', onCreated)
+    source.addEventListener('submission.updated', onUpdated)
+    return () => {
+      window.clearTimeout(flashTimer.current)
+      source.close()
+    }
+  }, [queryClient])
+
+  /* export respects the active filters (spec §4.6.3) */
   useEffect(() => {
     setExportHandler(() => {
-      const header = ['#', 'שם מלא', 'מייל', 'מסלול', 'תגיות', 'סטטוס', 'נשלח']
-      const rows = filtered.map((s) => [
-        s.id,
-        s.name,
-        s.email,
-        s.track,
-        s.tag?.text ?? '',
-        HANDLE_LABEL[s.status],
-        s.sentAt,
-      ])
-      const csv = [header, ...rows]
-        .map((r) => r.map((c) => `"${String(c).replaceAll('"', '""')}"`).join(','))
-        .join('\r\n')
-      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' })
-      const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
-      a.href = url
-      a.download = 'formflow-responses.csv'
+      a.href = api.exportUrl(filters, 'xlsx')
+      a.download = 'formflow-responses.xlsx'
+      document.body.appendChild(a)
       a.click()
-      URL.revokeObjectURL(url)
+      a.remove()
     })
     return () => setExportHandler(null)
-  }, [filtered, setExportHandler])
-
-  const total = submissions.length + 124
-  const today = 14 + (submissions.length - 4)
+  }, [filters, setExportHandler])
 
   return (
     <main className="page-body">
+      {subsError && (
+        <div className="offline-note">
+          שרת ה-API אינו זמין — מוצגים נתוני דמו. הריצו <code dir="ltr">npm run server</code>
+        </div>
+      )}
       <div className="kpi-grid">
         <div className="kpi-card">
           <div className="kpi-label">סה״כ תשובות</div>
-          <div className="kpi-value">{total}</div>
-          <div className="kpi-sub positive">{today}+ היום</div>
+          <div className="kpi-value">{analytics.total}</div>
+          <div className="kpi-sub positive">{analytics.today}+ היום</div>
         </div>
         <div className="kpi-card">
           <div className="kpi-label">אחוז השלמה</div>
-          <div className="kpi-value blue">82%</div>
+          <div className="kpi-value blue">{analytics.completion}%</div>
           <div className="kpi-sub">יעד: 75%</div>
         </div>
         <div className="kpi-card">
           <div className="kpi-label">זמן מילוי ממוצע</div>
-          <div className="kpi-value">2:41</div>
+          <div className="kpi-value">{analytics.avgTime}</div>
           <div className="kpi-sub">דקות</div>
         </div>
         <div className="kpi-card">
           <div className="kpi-label">ציון NPS</div>
-          <div className="kpi-value green">+46</div>
+          <div className="kpi-value green">+{analytics.nps}</div>
           <div className="kpi-sub">62% Promoters</div>
         </div>
         <div className="kpi-card">
           <div className="kpi-label">מקור תנועה מוביל</div>
-          <div className="kpi-value small">וואטסאפ</div>
-          <div className="kpi-sub">44% מהתשובות</div>
+          <div className="kpi-value small">{analytics.topSource.name}</div>
+          <div className="kpi-sub">{analytics.topSource.share}% מהתשובות</div>
         </div>
       </div>
 
@@ -174,7 +218,10 @@ export default function ResponsesScreen() {
           </div>
           <div style={{ height: 150, marginTop: 12 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={RANGE_DATA[range]} margin={{ top: 6, left: 0, right: 0, bottom: 0 }}>
+              <AreaChart
+                data={analytics.timeline[range]}
+                margin={{ top: 6, left: 0, right: 0, bottom: 0 }}
+              >
                 <XAxis
                   dataKey="label"
                   axisLine={false}
@@ -206,7 +253,7 @@ export default function ResponsesScreen() {
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={trackSplit}
+                    data={analytics.trackSplit}
                     dataKey="value"
                     innerRadius={34}
                     outerRadius={58}
@@ -215,16 +262,16 @@ export default function ResponsesScreen() {
                     stroke="none"
                     isAnimationActive={false}
                   >
-                    {trackSplit.map((entry, i) => (
+                    {analytics.trackSplit.map((entry, i) => (
                       <Cell key={entry.name} fill={colors.donut[i]} />
                     ))}
                   </Pie>
                 </PieChart>
               </ResponsiveContainer>
-              <div className="donut-center">{total}</div>
+              <div className="donut-center">{analytics.total}</div>
             </div>
             <div className="donut-legend">
-              {trackSplit.map((t, i) => (
+              {analytics.trackSplit.map((t, i) => (
                 <div key={t.name}>
                   <span className="swatch" style={{ background: colors.donut[i] }} />
                   {t.name} · {t.value}%
@@ -240,7 +287,7 @@ export default function ResponsesScreen() {
             <ResponsiveContainer width="100%" height="100%">
               {/* reversed so the 1→5 scale reads right-to-left like the rest of the UI */}
               <BarChart
-                data={[...workshopInterest].reverse()}
+                data={[...analytics.workshopInterest].reverse()}
                 margin={{ top: 4, left: 8, right: 8, bottom: 0 }}
               >
                 <XAxis
@@ -251,7 +298,7 @@ export default function ResponsesScreen() {
                 />
                 <YAxis hide />
                 <Bar dataKey="value" radius={[8, 8, 0, 0]} isAnimationActive={false}>
-                  {[...workshopInterest].reverse().map((entry) => (
+                  {[...analytics.workshopInterest].reverse().map((entry) => (
                     <Cell key={entry.label} fill={colors.bars[Number(entry.label) - 1]} />
                   ))}
                 </Bar>
@@ -296,7 +343,11 @@ export default function ResponsesScreen() {
             <option value="in_progress">בטיפול</option>
             <option value="done">טופל</option>
           </select>
-          <button type="button" className="filter-select" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <button
+            type="button"
+            className="filter-select"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
             <Calendar size={13} aria-hidden="true" /> 01–17 ביולי <ChevronDown size={12} />
           </button>
           <span className="subs-cols">
@@ -312,11 +363,17 @@ export default function ResponsesScreen() {
           <div>סטטוס</div>
           <div>נשלח</div>
         </div>
-        {filtered.map((s) => (
+        {submissions.map((s) => (
           <div
             key={s.id}
-            className={`trow${s.isNew ? ' is-new row-flash' : ''}`}
+            className={`trow clickable${s.id === flashId ? ' is-new row-flash' : ''}`}
             role="row"
+            tabIndex={0}
+            onClick={() => setOpenId(s.id)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') setOpenId(s.id)
+            }}
+            style={{ cursor: 'pointer' }}
           >
             <div className="sub-id">{s.id}</div>
             <div className="sub-name">{s.name}</div>
@@ -324,23 +381,29 @@ export default function ResponsesScreen() {
               {s.email}
             </div>
             <div>{s.track}</div>
-            <div>
-              {s.tag ? (
-                <span className={`tag-chip ${s.tag.color}`}>{s.tag.text}</span>
-              ) : (
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+              {s.tags.length === 0 ? (
                 <span style={{ color: 'var(--text-muted)' }}>—</span>
+              ) : (
+                s.tags.map((t) => (
+                  <span key={t.text} className={`tag-chip ${t.color}`}>
+                    {t.text}
+                  </span>
+                ))
               )}
             </div>
             <div>
               <span className={`handle-chip ${s.status}`}>{HANDLE_LABEL[s.status]}</span>
             </div>
-            <div className="sub-sent">{s.sentAt}</div>
+            <div className="sub-sent">{relTime(s.submittedAt)}</div>
           </div>
         ))}
-        {filtered.length === 0 && (
+        {submissions.length === 0 && (
           <div className="subs-empty">אין תשובות התואמות לסינון</div>
         )}
       </div>
+
+      {openId !== null && <SubmissionDrawer id={openId} onClose={() => setOpenId(null)} />}
     </main>
   )
 }

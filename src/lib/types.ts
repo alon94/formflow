@@ -45,9 +45,36 @@ export interface FormField {
   fieldKey: string
   options?: string[]
   half?: boolean
+  page?: number
 }
 
 export type RuleScope = 'fill' | 'submit'
+export type RuleOp = 'eq' | 'neq' | 'contains' | 'gt' | 'lt' | 'empty' | 'filled'
+export type TagColor = 'peach' | 'purple'
+
+export interface RuleCondition {
+  fieldKey: string
+  op: RuleOp
+  value?: string
+}
+
+export type RuleAction =
+  | { type: 'show_field'; fieldKey: string }
+  | { type: 'hide_field'; fieldKey: string }
+  | { type: 'jump_page'; page: number; label?: string }
+  | { type: 'route_email'; to: string }
+  | { type: 'add_tag'; text: string; color: TagColor }
+  | { type: 'assign'; user: string }
+
+export interface LogicRule {
+  id: string
+  name: string
+  scope: RuleScope
+  enabled: boolean
+  combinator: 'and' | 'or'
+  conditions: RuleCondition[]
+  actions: RuleAction[]
+}
 
 export interface RulePart {
   kind: 'if' | 'then' | 'and' | 'or' | 'field' | 'op' | 'value' | 'action' | 'tag'
@@ -55,25 +82,51 @@ export interface RulePart {
   ltr?: boolean
 }
 
-export interface LogicRule {
-  id: string
-  name: string
-  scope: RuleScope
-  enabled: boolean
-  parts: RulePart[]
-}
-
 export type HandleStatus = 'new' | 'in_progress' | 'done'
+
+export interface SubmissionTag {
+  text: string
+  color: TagColor
+}
 
 export interface Submission {
   id: number
+  values: Record<string, string>
   name: string
   email: string
   track: string
-  tag?: { text: string; color: 'peach' | 'purple' }
+  tags: SubmissionTag[]
+  assignedTo?: string | null
   status: HandleStatus
-  sentAt: string
+  notes: string
+  submittedAt: string
   isNew?: boolean
+}
+
+export interface NotificationEntry {
+  id: string
+  submissionId: number | null
+  channel: 'email' | 'sms' | 'webhook'
+  recipient: string
+  status: 'delivered' | 'queued' | 'optout' | 'failed'
+  note: string
+  at: string
+}
+
+export interface SubmissionDetail extends Submission {
+  notifications: NotificationEntry[]
+}
+
+export interface AnalyticsPayload {
+  total: number
+  today: number
+  completion: number
+  avgTime: string
+  nps: number
+  topSource: { name: string; share: number }
+  timeline: Record<'day' | 'week' | 'month', { label: string; value: number }[]>
+  trackSplit: { name: string; value: number }[]
+  workshopInterest: { label: string; value: number }[]
 }
 
 export interface BrandingState {
@@ -99,4 +152,17 @@ export interface NotifState {
   smsEnabled: boolean
   smsTemplate: string
   smsReminder: boolean
+}
+
+export interface FormDoc {
+  id: string
+  slug: string
+  name: string
+  status: FormStatus
+  version: number
+  publishedAt?: string
+  fields: FormField[]
+  rules: LogicRule[]
+  notif: NotifState
+  branding: BrandingState
 }

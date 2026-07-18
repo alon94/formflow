@@ -12,11 +12,12 @@ import {
   Plus,
   Ticket,
 } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AdminTopbar from '../components/AdminTopbar'
-import { FORM_ID } from '../lib/data'
-import { useStore } from '../lib/store'
+import { api } from '../lib/api'
+import { FORM_ID, relTime, seedForms } from '../lib/data'
 import type { FormStatus } from '../lib/types'
 
 const STATUS_LABEL: Record<FormStatus, string> = {
@@ -36,10 +37,28 @@ const ICONS: Record<string, React.ReactNode> = {
 type Filter = 'all' | FormStatus
 
 export default function HomeScreen() {
-  const { forms } = useStore()
   const navigate = useNavigate()
   const [filter, setFilter] = useState<Filter>('all')
   const [search, setSearch] = useState('')
+
+  /* live counters for the demo form come from the API; the rest are static examples */
+  const { data: serverForms } = useQuery({ queryKey: ['forms'], queryFn: api.getForms })
+
+  const forms = useMemo(() => {
+    const live = serverForms?.find((f) => f.id === FORM_ID)
+    if (!live) return seedForms
+    return seedForms.map((f) =>
+      f.id === FORM_ID
+        ? {
+            ...f,
+            status: live.status as FormStatus,
+            responses: live.responses,
+            completion: live.completion,
+            lastResponse: live.lastResponseAt ? relTime(live.lastResponseAt) : f.lastResponse,
+          }
+        : f,
+    )
+  }, [serverForms])
 
   const filtered = useMemo(
     () =>

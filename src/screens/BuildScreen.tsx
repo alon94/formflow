@@ -27,6 +27,7 @@ import {
   Copy,
   CreditCard,
   GripVertical,
+  Hash,
   IdCard,
   Monitor,
   Phone,
@@ -34,29 +35,31 @@ import {
   Search,
   Smartphone,
   Star,
+  Text,
   Trash2,
   Undo2,
+  Wand2,
   X,
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useOutletContext } from 'react-router-dom'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Toggle from '../components/Toggle'
 import { LogoArrow } from '../components/LogoMark'
 import { fieldLibrary, fieldTypeMeta } from '../lib/data'
 import { useStore } from '../lib/store'
 import type { FieldType, FormField } from '../lib/types'
-import type { FormShellContext } from './FormShell'
-
-const FIELDS_KEY = 'formflow.fields'
 
 function TypeIcon({ icon, size = 14 }: { icon: string; size?: number }) {
   switch (icon) {
     case 'Aa':
       return <span style={{ fontSize: size - 1, fontWeight: 800 }}>Aa</span>
+    case 'paragraph':
+      return <Text size={size} />
     case '@':
       return <AtSign size={size} />
     case 'phone':
       return <Phone size={size} />
+    case 'number':
+      return <Hash size={size} />
     case 'radio':
       return <CircleDot size={size} />
     case 'dropdown':
@@ -137,6 +140,12 @@ function FieldPreview({ field }: { field: FormField }) {
           ))}
         </div>
       )
+    case 'long_text':
+      return (
+        <div className="f-input" style={{ minHeight: 74, alignItems: 'flex-start' }}>
+          {field.placeholder ?? ''}
+        </div>
+      )
     default:
       return (
         <div className="f-input" dir={field.type === 'email' ? 'ltr' : undefined}>
@@ -146,9 +155,10 @@ function FieldPreview({ field }: { field: FormField }) {
   }
 }
 
-function CanvasField({ field, selected, onSelect, onDuplicate, onDelete }: {
+function CanvasField({ field, selected, ruleControlled, onSelect, onDuplicate, onDelete }: {
   field: FormField
   selected: boolean
+  ruleControlled: boolean
   onSelect: () => void
   onDuplicate: () => void
   onDelete: () => void
@@ -190,6 +200,11 @@ function CanvasField({ field, selected, onSelect, onDuplicate, onDelete }: {
       )}
       <div className="f-label">
         {field.label} {field.required && <span className="req-star">*</span>}
+        {ruleControlled && (
+          <span className="rule-chip" title="הנראות של השדה נשלטת ע״י כלל לוגיקה">
+            <Wand2 size={10} /> לפי כלל
+          </span>
+        )}
       </div>
       <FieldPreview field={field} />
       {field.help && <div className="f-help">{field.help}</div>}
@@ -199,7 +214,7 @@ function CanvasField({ field, selected, onSelect, onDuplicate, onDelete }: {
 
 let fieldCounter = 1
 
-function newField(type: FieldType): FormField {
+function newField(type: FieldType, page: number): FormField {
   const meta = fieldTypeMeta[type]
   fieldCounter += 1
   const base: FormField = {
@@ -208,10 +223,13 @@ function newField(type: FieldType): FormField {
     label: meta.label,
     required: false,
     fieldKey: `${type}_${fieldCounter}`,
+    page,
   }
   switch (type) {
     case 'short_text':
       return { ...base, label: 'שאלה חדשה', placeholder: 'הקלידו תשובה…' }
+    case 'long_text':
+      return { ...base, label: 'טקסט חופשי', placeholder: 'ספרו לנו עוד…' }
     case 'email':
       return {
         ...base,
@@ -221,6 +239,8 @@ function newField(type: FieldType): FormField {
       }
     case 'phone':
       return { ...base, label: 'טלפון נייד', placeholder: '050-0000000' }
+    case 'number':
+      return { ...base, label: 'מספר', placeholder: '0' }
     case 'radio':
       return { ...base, label: 'בחירה יחידה', options: ['אפשרות 1', 'אפשרות 2', 'אפשרות 3'] }
     case 'dropdown':
@@ -246,8 +266,7 @@ const VALIDATION_LABELS: Record<string, string[]> = {
 }
 
 export default function BuildScreen() {
-  const { fields, setFields } = useStore()
-  const { setSaveStatus } = useOutletContext<FormShellContext>()
+  const { fields, setFields, rules } = useStore()
   const [selectedId, setSelectedId] = useState<string | null>('fld-email')
   const [libSearch, setLibSearch] = useState('')
   const [libCat, setLibCat] = useState<'all' | 'text' | 'choice' | 'advanced'>('all')
@@ -264,24 +283,18 @@ export default function BuildScreen() {
   const fieldsRef = useRef(fields)
   fieldsRef.current = fields
 
-  /* autosave: debounce writes, mirror to localStorage (per spec — every few seconds) */
-  const saveTimer = useRef<number | undefined>(undefined)
-  const firstRun = useRef(true)
-  useEffect(() => {
-    if (firstRun.current) {
-      firstRun.current = false
-      return
+  /* fields whose visibility is controlled by a fill-scope rule */
+  const ruleControlledKeys = useMemo(() => {
+    const keys = new Set<string>()
+    for (const rule of rules) {
+      if (!rule.enabled || rule.scope !== 'fill') continue
+      for (const a of rule.actions) {
+        if (a.type === 'show_field' || a.type === 'hide_field') keys.add(a.fieldKey)
+      }
     }
-    setSaveStatus('saving')
-    window.clearTimeout(saveTimer.current)
-    saveTimer.current = window.setTimeout(() => {
-      localStorage.setItem(FIELDS_KEY, JSON.stringify(fields))
-      setSaveStatus('saved')
-    }, 900)
-    return () => window.clearTimeout(saveTimer.current)
-  }, [fields, setSaveStatus])
+    return keys
+  }, [rules])
 
-  /* history-recording update (add/remove/reorder/toggles) */
   const commit = useCallback(
     (next: FormField[]) => {
       setPast((p) => [...p.slice(-49), fieldsRef.current])
@@ -291,7 +304,6 @@ export default function BuildScreen() {
     [setFields],
   )
 
-  /* light update without history (typing) */
   const update = useCallback(
     (next: FormField[]) => {
       setFields(next)
@@ -354,7 +366,8 @@ export default function BuildScreen() {
   )
 
   const addField = (type: FieldType, index?: number) => {
-    const f = newField(type)
+    const anchor = index !== undefined ? fields[index] : fields[fields.length - 1]
+    const f = newField(type, anchor?.page ?? 1)
     const next = [...fields]
     next.splice(index ?? fields.length, 0, f)
     commit(next)
@@ -390,7 +403,11 @@ export default function BuildScreen() {
       const oldIndex = fields.findIndex((f) => f.id === active.id)
       const newIndex = fields.findIndex((f) => f.id === over.id)
       if (oldIndex !== -1 && newIndex !== -1) {
-        commit(arrayMove(fields, oldIndex, newIndex))
+        const moved = arrayMove(fields, oldIndex, newIndex)
+        /* keep page assignment consistent with the new neighbours */
+        const neighbour = moved[newIndex === 0 ? 1 : newIndex - 1]
+        moved[newIndex] = { ...moved[newIndex], page: neighbour?.page ?? 1 }
+        commit(moved)
       }
     }
   }
@@ -496,22 +513,35 @@ export default function BuildScreen() {
             </div>
             <SortableContext items={fields.map((f) => f.id)} strategy={rectSortingStrategy}>
               <div className="fields-wrap">
-                {fields.map((f) => (
-                  <CanvasField
-                    key={f.id}
-                    field={f}
-                    selected={f.id === selectedId}
-                    onSelect={() => setSelectedId(f.id)}
-                    onDuplicate={() => duplicateField(f.id)}
-                    onDelete={() => deleteField(f.id)}
-                  />
-                ))}
+                {fields.map((f, i) => {
+                  const prevPage = i === 0 ? 1 : (fields[i - 1].page ?? 1)
+                  const showSep = (f.page ?? 1) > prevPage || (i === 0 && (f.page ?? 1) > 1)
+                  return (
+                    <Fragment key={f.id}>
+                      {i === 0 && (
+                        <div className="page-sep" aria-hidden="true">
+                          עמוד 1
+                        </div>
+                      )}
+                      {showSep && (
+                        <div className="page-sep" aria-hidden="true">
+                          עמוד {f.page}
+                        </div>
+                      )}
+                      <CanvasField
+                        field={f}
+                        selected={f.id === selectedId}
+                        ruleControlled={ruleControlledKeys.has(f.fieldKey)}
+                        onSelect={() => setSelectedId(f.id)}
+                        onDuplicate={() => duplicateField(f.id)}
+                        onDelete={() => deleteField(f.id)}
+                      />
+                    </Fragment>
+                  )
+                })}
               </div>
             </SortableContext>
-            <div
-              ref={dropzoneRef}
-              className={`dropzone${overDropzone ? ' over' : ''}`}
-            >
+            <div ref={dropzoneRef} className={`dropzone${overDropzone ? ' over' : ''}`}>
               ＋ גררו שדה לכאן
             </div>
             <div className="canvas-footer">
@@ -593,6 +623,12 @@ export default function BuildScreen() {
             <div className="settings-note">
               💡 כללי לוגיקה לשדה זה מנוהלים בלשונית <b>לוגיקה</b> שבסרגל העליון —
               תנאים (אם/אז), הצגה מותנית, קפיצה בין עמודים ועוד.
+              {ruleControlledKeys.has(selected.fieldKey) && (
+                <>
+                  <br />
+                  <br />⚡ הנראות של השדה הזה כבר נשלטת ע״י כלל פעיל.
+                </>
+              )}
             </div>
           ) : (
             <>

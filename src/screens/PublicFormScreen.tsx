@@ -1,51 +1,26 @@
+import { useMutation } from '@tanstack/react-query'
 import { Check, Moon, Sun } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { computeFillState, skippedPages } from '../../shared/rules.js'
+import { validateValue } from '../../shared/validate.js'
 import LogoMark, { LogoArrow } from '../components/LogoMark'
+import { api, SubmitValidationError } from '../lib/api'
 import { useStore } from '../lib/store'
-import type { FormField } from '../lib/types'
+import type { FormField, NotificationEntry, Submission } from '../lib/types'
 import { isLightColor } from './DesignScreen'
 
 const DRAFT_KEY = 'formflow.public.draft'
-const TOTAL_STEPS = 3
+
+const PAGE_TITLES: Record<number, string> = {
+  1: 'פרטי מועדון',
+  2: 'פרטים אישיים',
+  3: 'כמעט סיימנו',
+}
 
 type Values = Record<string, string>
 
-function validateField(field: FormField, value: string): string | null {
-  const v = value.trim()
-  if (field.required && v === '') return 'שדה חובה'
-  if (v === '') return null
-  switch (field.type) {
-    case 'email':
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v))
-        return field.errorMessage || 'נא להזין כתובת מייל תקינה'
-      break
-    case 'phone':
-      if (!/^0(5\d|[2-9])-?\d{7}$/.test(v.replaceAll(' ', '')))
-        return field.errorMessage || 'נא להזין מספר טלפון ישראלי תקין (05X-XXXXXXX)'
-      break
-    case 'id_number': {
-      if (!/^\d{9}$/.test(v)) return field.errorMessage || 'ת״ז חייבת לכלול 9 ספרות'
-      const sum = v
-        .split('')
-        .map((d, i) => {
-          const n = Number(d) * (i % 2 === 0 ? 1 : 2)
-          return n > 9 ? n - 9 : n
-        })
-        .reduce((a, b) => a + b, 0)
-      if (sum % 10 !== 0) return field.errorMessage || 'מספר ת״ז אינו תקין'
-      break
-    }
-    case 'number':
-      if (!/^\d+$/.test(v)) return 'נא להזין מספר'
-      break
-    default:
-      break
-  }
-  return null
-}
-
 export default function PublicFormScreen() {
-  const { fields, branding, addLiveSubmission, submissions } = useStore()
+  const { fields, rules, branding } = useStore()
 
   /* theme resolution: form setting (אוטומטי/בהיר/כהה) + local visitor override */
   const [override, setOverride] = useState<'light' | 'dark' | null>(null)
@@ -62,39 +37,57 @@ export default function PublicFormScreen() {
     override ??
     (branding.darkMode === 'auto' ? (systemDark ? 'dark' : 'light') : branding.darkMode)
 
-  const [step, setStep] = useState(1)
+  const pages = useMemo(
+    () => [...new Set(fields.map((f) => f.page ?? 1))].sort((a, b) => a - b),
+    [fields],
+  )
+  const [page, setPage] = useState(1)
+  const [visited, setVisited] = useState<number[]>([])
   const [values, setValues] = useState<Values>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [submitted, setSubmitted] = useState(false)
-  const [submissionId, setSubmissionId] = useState<number | null>(null)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [result, setResult] = useState<{
+    submission: Submission
+    notifications: NotificationEntry[]
+  } | null>(null)
   const inputRefs = useRef<Record<string, HTMLElement | null>>({})
   const restored = useRef(false)
 
-  /* restore visitor draft */
+  /* restore + autosave visitor draft (spec §4.8) */
   useEffect(() => {
     if (restored.current) return
     restored.current = true
     try {
       const raw = localStorage.getItem(DRAFT_KEY)
       if (raw) {
-        const draft = JSON.parse(raw) as { values: Values; step: number }
+        const draft = JSON.parse(raw) as { values: Values; page: number }
         setValues(draft.values ?? {})
-        if (draft.step >= 1 && draft.step <= TOTAL_STEPS) setStep(draft.step)
+        if (draft.page && pages.includes(draft.page)) setPage(draft.page)
       }
     } catch {
       /* ignore corrupted draft */
     }
-  }, [])
+  }, [pages])
 
-  /* autosave visitor draft */
   useEffect(() => {
-    if (submitted) return
+    if (result) return
     const t = window.setTimeout(
-      () => localStorage.setItem(DRAFT_KEY, JSON.stringify({ values, step })),
+      () => localStorage.setItem(DRAFT_KEY, JSON.stringify({ values, page })),
       500,
     )
     return () => window.clearTimeout(t)
-  }, [values, step, submitted])
+  }, [values, page, result])
+
+  const { hiddenFieldKeys, jumpTargets } = useMemo(
+    () => computeFillState(fields, rules, values),
+    [fields, rules, values],
+  )
+
+  const pageFields = useMemo(
+    () =>
+      fields.filter((f) => (f.page ?? 1) === page && !hiddenFieldKeys.has(f.fieldKey)),
+    [fields, page, hiddenFieldKeys],
+  )
 
   const setValue = (key: string, value: string) => {
     setValues((v) => ({ ...v, [key]: value }))
@@ -106,97 +99,88 @@ export default function PublicFormScreen() {
     })
   }
 
-  /* step field definitions */
-  const memberField: FormField = {
-    id: 'pf-member',
-    type: 'radio',
-    label: 'חברת מועדון שווה?',
-    required: true,
-    fieldKey: 'member',
-    options: ['כן, חברי מועדון', 'עדיין לא'],
-  }
-  const participantsField: FormField = {
-    id: 'pf-participants',
-    type: 'number',
-    label: 'מספר משתתפים',
-    required: true,
-    fieldKey: 'participants',
-    placeholder: 'למשל: 2',
-  }
-  const notesField: FormField = {
-    id: 'pf-notes',
-    type: 'long_text',
-    label: 'הערות והעדפות (אופציונלי)',
-    required: false,
-    fieldKey: 'notes',
-    placeholder: 'נגישות, תזונה, כל דבר שנצטרך לדעת…',
-  }
-  const termsField: FormField = {
-    id: 'pf-terms',
-    type: 'radio',
-    label: 'אישור תקנון',
-    required: true,
-    fieldKey: 'terms',
-    options: ['קראתי ואני מאשר/ת את תנאי ההשתתפות'],
+  const focusFirstError = (errs: Record<string, string>, fieldList: FormField[]) => {
+    const firstKey = fieldList.find((f) => errs[f.fieldKey])?.fieldKey
+    if (!firstKey) return
+    const el = inputRefs.current[firstKey]
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) el.focus()
   }
 
-  const stepFields: FormField[][] = useMemo(
-    () => [
-      [memberField, participantsField],
-      fields,
-      [notesField, termsField],
-    ],
-    [fields],
-  )
-
-  const validateStep = (): boolean => {
-    const current = stepFields[step - 1]
+  const validatePage = (): boolean => {
     const nextErrors: Record<string, string> = {}
-    for (const f of current) {
-      const err = validateField(f, values[f.fieldKey] ?? '')
+    for (const f of pageFields) {
+      const err = validateValue(f, values[f.fieldKey] ?? '')
       if (err) nextErrors[f.fieldKey] = err
     }
     setErrors(nextErrors)
-    const firstKey = current.find((f) => nextErrors[f.fieldKey])?.fieldKey
-    if (firstKey) {
-      const el = inputRefs.current[firstKey]
-      el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) el.focus()
+    if (Object.keys(nextErrors).length > 0) {
+      focusFirstError(nextErrors, pageFields)
       return false
     }
     return true
   }
 
+  const submit = useMutation({
+    mutationFn: () => api.postSubmission(values),
+    onSuccess: (data) => {
+      localStorage.removeItem(DRAFT_KEY)
+      setResult(data)
+      window.scrollTo({ top: 0 })
+    },
+    onError: (err) => {
+      if (err instanceof SubmitValidationError) {
+        setErrors(err.errors)
+        const errorPage = fields.find((f) => err.errors[f.fieldKey])?.page ?? page
+        setPage(errorPage)
+        window.setTimeout(
+          () =>
+            focusFirstError(
+              err.errors,
+              fields.filter((f) => (f.page ?? 1) === errorPage),
+            ),
+          80,
+        )
+      } else {
+        setSubmitError('לא הצלחנו לשלוח את הטופס — ודאו ששרת ה-API רץ ונסו שוב')
+      }
+    },
+  })
+
   const next = () => {
-    if (!validateStep()) return
-    if (step < TOTAL_STEPS) {
-      setStep(step + 1)
-      window.scrollTo({ top: 0, behavior: 'smooth' })
+    setSubmitError(null)
+    if (!validatePage()) return
+    const isLast = page === pages[pages.length - 1]
+    if (isLast) {
+      submit.mutate()
       return
     }
-    /* submit */
-    const emailKey = fields.find((f) => f.type === 'email')?.fieldKey
-    const trackKey = fields.find((f) => f.type === 'radio')?.fieldKey
-    const first = values['first_name'] ?? ''
-    const last = values['last_name'] ?? ''
-    const id = Math.max(...submissions.map((s) => s.id)) + 1
-    addLiveSubmission({
-      name: `${first} ${last}`.trim() || 'ממלא/ת אנונימי/ת',
-      email: emailKey ? (values[emailKey] ?? '') : '',
-      track: trackKey ? (values[trackKey] ?? '—') : '—',
-      status: 'new',
-    })
-    setSubmissionId(id)
-    localStorage.removeItem(DRAFT_KEY)
-    setSubmitted(true)
-    window.scrollTo({ top: 0 })
+    /* jump rules (skip logic) then default advance, skipping skipped pages */
+    const skipped = skippedPages(fields, rules, values)
+    let target = jumpTargets.get(page)
+    if (!target || target <= page) {
+      const idx = pages.indexOf(page)
+      target = pages[idx + 1]
+      while (target && skipped.has(target)) {
+        const i = pages.indexOf(target)
+        target = pages[i + 1]
+      }
+    }
+    if (target) {
+      setVisited((v) => [...v, page])
+      setPage(target)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
   }
 
   const back = () => {
-    if (step > 1) {
-      setStep(step - 1)
+    setVisited((v) => {
+      if (v.length === 0) return v
+      const prev = v[v.length - 1]
+      setPage(prev)
       setErrors({})
-    }
+      return v.slice(0, -1)
+    })
   }
 
   /* branding overrides */
@@ -226,7 +210,7 @@ export default function PublicFormScreen() {
         e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
       ) => setValue(f.fieldKey, e.target.value),
       onBlur: () => {
-        const e2 = validateField(f, values[f.fieldKey] ?? '')
+        const e2 = validateValue(f, values[f.fieldKey] ?? '')
         if (e2) setErrors((prev) => ({ ...prev, [f.fieldKey]: e2 }))
       },
     }
@@ -319,7 +303,11 @@ export default function PublicFormScreen() {
                   aria-checked={values[f.fieldKey] === String(n)}
                   aria-label={`${n} מתוך 5`}
                   onClick={() => setValue(f.fieldKey, String(n))}
-                  style={{ color: chosen ? 'var(--primary)' : 'var(--text-placeholder)', fontSize: 24, lineHeight: 1 }}
+                  style={{
+                    color: chosen ? 'var(--primary)' : 'var(--text-placeholder)',
+                    fontSize: 24,
+                    lineHeight: 1,
+                  }}
                 >
                   ★
                 </button>
@@ -350,7 +338,7 @@ export default function PublicFormScreen() {
   }
 
   const renderField = (f: FormField) => (
-    <div className="pub-field" key={f.id}>
+    <div className="pub-field fade-up" key={f.id}>
       {f.type === 'radio' || f.type === 'rating' ? (
         <span className="pub-label">
           {f.label} {f.required && <span className="req-star">*</span>}
@@ -370,7 +358,6 @@ export default function PublicFormScreen() {
     </div>
   )
 
-  /* pair consecutive half-width fields */
   const renderFields = (list: FormField[]) => {
     const out: React.ReactNode[] = []
     for (let i = 0; i < list.length; i++) {
@@ -391,7 +378,8 @@ export default function PublicFormScreen() {
     return out
   }
 
-  const stepTitles = ['פרטי מועדון', 'פרטים אישיים', 'כמעט סיימנו']
+  const stepIndex = pages.indexOf(page) + 1
+  const isLast = page === pages[pages.length - 1]
 
   return (
     <div className="pub-root" data-theme={resolved} style={styleVars} dir="rtl">
@@ -410,18 +398,29 @@ export default function PublicFormScreen() {
         subColor={resolved === 'dark' ? 'var(--lime)' : branding.textColor}
       />
 
-      {submitted ? (
+      {result ? (
         <div className="pub-card pub-success fade-up">
           <span className="success-circle">
             <Check size={32} strokeWidth={3} />
           </span>
           <h1>ההרשמה נקלטה!</h1>
-          {submissionId && <span className="sub-id-chip">הרשמה מס׳ {submissionId}</span>}
+          <span className="sub-id-chip">הרשמה מס׳ {result.submission.id}</span>
           <p>
-            שלחנו אישור למייל שהזנתם, כולל כרטיס iCal לאירוע.
-            <br />
             נתראה ב-12 בנובמבר במרכז הכנסים תל אביב 🎉
           </p>
+          {result.notifications.length > 0 && (
+            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {result.notifications.map((n) => (
+                <div key={n.id} className="notif-log-row">
+                  <span className="rec" dir="ltr">
+                    {n.recipient}
+                  </span>
+                  <span>· {n.note}</span>
+                  <span className="when">נמסר ✓</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       ) : (
         <form
@@ -442,23 +441,34 @@ export default function PublicFormScreen() {
             <div className="progress-track">
               <div
                 className="progress-fill"
-                style={{ width: `${Math.round((step / TOTAL_STEPS) * 100)}%` }}
+                style={{ width: `${Math.round((stepIndex / pages.length) * 100)}%` }}
               />
             </div>
             <span className="step-label">
-              שלב {step} מתוך {TOTAL_STEPS}
+              שלב {stepIndex} מתוך {pages.length}
             </span>
           </div>
 
-          <div className="pub-step-title">{stepTitles[step - 1]}</div>
+          <div className="pub-step-title">{PAGE_TITLES[page] ?? `שלב ${stepIndex}`}</div>
 
-          {renderFields(stepFields[step - 1])}
+          {renderFields(pageFields)}
+
+          {submitError && (
+            <div className="pub-error" role="alert">
+              {submitError}
+            </div>
+          )}
 
           <div className="pub-cta-row">
-            <button type="submit" className="pub-cta" style={{ color: ctaTextColor }}>
-              {step === TOTAL_STEPS ? 'שליחת הרשמה ←' : 'להמשך ←'}
+            <button
+              type="submit"
+              className="pub-cta"
+              style={{ color: ctaTextColor }}
+              disabled={submit.isPending}
+            >
+              {submit.isPending ? 'שולח…' : isLast ? 'שליחת הרשמה ←' : 'להמשך ←'}
             </button>
-            {step > 1 && (
+            {visited.length > 0 && (
               <button type="button" className="pub-back" onClick={back}>
                 → חזרה
               </button>

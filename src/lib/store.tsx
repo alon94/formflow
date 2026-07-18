@@ -4,42 +4,39 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
-import {
-  defaultBranding,
-  defaultNotif,
-  seedFields,
-  seedForms,
-  seedRules,
-  seedSubmissions,
-} from './data'
+import { api } from './api'
+import { defaultBranding, defaultNotif, FORM_NAME, seedFields, seedRules } from './data'
 import type {
   BrandingState,
   FormField,
-  FormMeta,
+  FormStatus,
   LogicRule,
   NotifState,
-  Submission,
 } from './types'
 
 export type Theme = 'light' | 'dark'
+export type SaveState = 'saved' | 'saving' | 'offline'
 
 interface AppStore {
   theme: Theme
   toggleTheme: () => void
-  forms: FormMeta[]
+  serverReady: boolean
+  saveState: SaveState
+  formName: string
+  formStatus: FormStatus
   fields: FormField[]
   setFields: (next: FormField[]) => void
   rules: LogicRule[]
   setRules: (next: LogicRule[]) => void
-  submissions: Submission[]
-  addLiveSubmission: (s: Omit<Submission, 'id' | 'sentAt'>) => void
   branding: BrandingState
   setBranding: (next: Partial<BrandingState>) => void
   notif: NotifState
   setNotif: (next: Partial<NotifState>) => void
+  publish: () => Promise<void>
 }
 
 const StoreContext = createContext<AppStore | null>(null)
@@ -52,18 +49,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (saved === 'dark' || saved === 'light') return saved
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
   })
-  const [forms] = useState(seedForms)
-  const [fields, setFields] = useState<FormField[]>(() => {
-    try {
-      const saved = localStorage.getItem('formflow.fields')
-      if (saved) return JSON.parse(saved) as FormField[]
-    } catch {
-      /* corrupted draft — fall back to seed */
-    }
-    return seedFields
-  })
-  const [rules, setRules] = useState<LogicRule[]>(seedRules)
-  const [submissions, setSubmissions] = useState<Submission[]>(seedSubmissions)
+  const [serverReady, setServerReady] = useState(false)
+  const [saveState, setSaveState] = useState<SaveState>('saved')
+  const [formStatus, setFormStatus] = useState<FormStatus>('draft')
+  const [fields, setFieldsState] = useState<FormField[]>(seedFields)
+  const [rules, setRulesState] = useState<LogicRule[]>(seedRules)
   const [branding, setBrandingState] = useState<BrandingState>(defaultBranding)
   const [notif, setNotifState] = useState<NotifState>(defaultNotif)
 
@@ -72,57 +62,130 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(THEME_KEY, theme)
   }, [theme])
 
+  /* load server truth once */
+  useEffect(() => {
+    let cancelled = false
+    api
+      .getForm()
+      .then((form) => {
+        if (cancelled) return
+        setFieldsState(form.fields)
+        setRulesState(form.rules)
+        setBrandingState(form.branding)
+        setNotifState(form.notif)
+        setFormStatus(form.status)
+        setServerReady(true)
+      })
+      .catch(() => {
+        if (!cancelled) setSaveState('offline')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  /* debounced autosave of edited groups to the server */
+  const pendingPatch = useRef<Record<string, unknown>>({})
+  const patchTimer = useRef<number | undefined>(undefined)
+  const queuePatch = useCallback((key: string, value: unknown) => {
+    pendingPatch.current[key] = value
+    setSaveState((s) => (s === 'offline' ? s : 'saving'))
+    window.clearTimeout(patchTimer.current)
+    patchTimer.current = window.setTimeout(() => {
+      const patch = pendingPatch.current
+      pendingPatch.current = {}
+      api
+        .patchForm(patch)
+        .then(() => setSaveState('saved'))
+        .catch(() => setSaveState('offline'))
+    }, 900)
+  }, [])
+
   const toggleTheme = useCallback(
     () => setTheme((t) => (t === 'light' ? 'dark' : 'light')),
     [],
   )
 
-  const addLiveSubmission = useCallback((s: Omit<Submission, 'id' | 'sentAt'>) => {
-    setSubmissions((prev) => {
-      const nextId = Math.max(...prev.map((p) => p.id)) + 1
-      const cleared = prev.map((p) => ({ ...p, isNew: false }))
-      return [{ ...s, id: nextId, sentAt: 'ממש עכשיו', isNew: true }, ...cleared]
-    })
-  }, [])
+  const setFields = useCallback(
+    (next: FormField[]) => {
+      setFieldsState(next)
+      queuePatch('fields', next)
+    },
+    [queuePatch],
+  )
+
+  const setRules = useCallback(
+    (next: LogicRule[]) => {
+      setRulesState(next)
+      queuePatch('rules', next)
+    },
+    [queuePatch],
+  )
 
   const setBranding = useCallback(
-    (next: Partial<BrandingState>) => setBrandingState((prev) => ({ ...prev, ...next })),
-    [],
+    (patch: Partial<BrandingState>) => {
+      setBrandingState((prev) => {
+        const next = { ...prev, ...patch }
+        queuePatch('branding', next)
+        return next
+      })
+    },
+    [queuePatch],
   )
 
   const setNotif = useCallback(
-    (next: Partial<NotifState>) => setNotifState((prev) => ({ ...prev, ...next })),
-    [],
+    (patch: Partial<NotifState>) => {
+      setNotifState((prev) => {
+        const next = { ...prev, ...patch }
+        queuePatch('notif', next)
+        return next
+      })
+    },
+    [queuePatch],
   )
+
+  const publish = useCallback(async () => {
+    try {
+      const form = await api.publishForm()
+      setFormStatus(form.status)
+    } catch {
+      setFormStatus('published') /* optimistic when offline */
+    }
+  }, [])
 
   const value = useMemo<AppStore>(
     () => ({
       theme,
       toggleTheme,
-      forms,
+      serverReady,
+      saveState,
+      formName: FORM_NAME,
+      formStatus,
       fields,
       setFields,
       rules,
       setRules,
-      submissions,
-      addLiveSubmission,
       branding,
       setBranding,
       notif,
       setNotif,
+      publish,
     }),
     [
       theme,
       toggleTheme,
-      forms,
+      serverReady,
+      saveState,
+      formStatus,
       fields,
+      setFields,
       rules,
-      submissions,
-      addLiveSubmission,
+      setRules,
       branding,
       setBranding,
       notif,
       setNotif,
+      publish,
     ],
   )
 

@@ -21,9 +21,10 @@ export function ThemeButton() {
 interface HomeTopbarProps {
   search: string
   onSearch: (value: string) => void
+  searchPlaceholder?: string
 }
 
-export default function AdminTopbar({ search, onSearch }: HomeTopbarProps) {
+export default function AdminTopbar({ search, onSearch, searchPlaceholder }: HomeTopbarProps) {
   return (
     <header className="topbar">
       <NavLink to="/" aria-label="FormFlow — דף הבית">
@@ -36,9 +37,9 @@ export default function AdminTopbar({ search, onSearch }: HomeTopbarProps) {
         <a href="#" onClick={(e) => e.preventDefault()}>
           תבניות
         </a>
-        <a href="#" onClick={(e) => e.preventDefault()}>
+        <NavLink to="/integrations" className={({ isActive }) => (isActive ? 'active' : '')}>
           אינטגרציות
-        </a>
+        </NavLink>
         <a href="#" onClick={(e) => e.preventDefault()}>
           הגדרות Workspace
         </a>
@@ -48,10 +49,10 @@ export default function AdminTopbar({ search, onSearch }: HomeTopbarProps) {
           <Search size={15} aria-hidden="true" />
           <input
             type="search"
-            placeholder="חיפוש…"
+            placeholder={searchPlaceholder ?? 'חיפוש…'}
             value={search}
             onChange={(e) => onSearch(e.target.value)}
-            aria-label="חיפוש טפסים"
+            aria-label="חיפוש"
           />
         </label>
         <ThemeButton />
