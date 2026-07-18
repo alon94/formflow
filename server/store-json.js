@@ -7,7 +7,7 @@ export class JsonStore {
     this.path = path
     try {
       this.db = JSON.parse(fs.readFileSync(path, 'utf-8'))
-      if (!this.db.webhookLogs) throw new Error('stale schema')
+      if (!this.db.workspaces) throw new Error('stale schema')
     } catch {
       this.db = buildSeedDb()
       this.#flush()
@@ -29,18 +29,55 @@ export class JsonStore {
     return this.db.baseline
   }
 
-  getForm() {
-    return this.db.form
+  workspaceForEmail(email) {
+    return (
+      this.db.workspaces.find((w) => w.members.includes(email) || w.ownerEmail === email) ?? null
+    )
   }
 
-  saveForm(form) {
-    this.db.form = form
+  createWorkspace(w) {
+    this.db.workspaces.push(w)
+    this.#flush()
+    return w
+  }
+
+  listForms(workspaceId) {
+    return this.db.forms.filter((f) => f.workspaceId === workspaceId)
+  }
+
+  getForm(idOrSlug) {
+    return this.db.forms.find((f) => f.id === idOrSlug || f.slug === idOrSlug) ?? null
+  }
+
+  createForm(form) {
+    this.db.forms.push(form)
     this.#flush()
   }
 
-  listSubmissions({ q, track, status }) {
+  saveForm(form) {
+    const i = this.db.forms.findIndex((f) => f.id === form.id)
+    if (i !== -1) this.db.forms[i] = form
+    this.#flush()
+  }
+
+  deleteForm(formId, { withSubmissions }) {
+    if (withSubmissions) {
+      const subIds = new Set(
+        this.db.submissions.filter((s) => s.formId === formId).map((s) => s.id),
+      )
+      this.db.notifications = this.db.notifications.filter((n) => !subIds.has(n.submissionId))
+      this.db.submissions = this.db.submissions.filter((s) => s.formId !== formId)
+    }
+    this.db.webhookLogs = this.db.webhookLogs.filter((l) => l.formId !== formId)
+    this.db.versions = this.db.versions.filter((v) => v.formId !== formId)
+    this.db.forms = this.db.forms.filter((f) => f.id !== formId)
+    this.#flush()
+  }
+
+  listSubmissions(formId, { q, track, status }) {
     return this.db.submissions
       .filter((s) => {
+        if (s.formId !== formId) return false
         if (q) {
           const hay = `${s.name} ${s.email} ${Object.values(s.values ?? {}).join(' ')}`
           if (!hay.includes(q)) return false
@@ -56,8 +93,10 @@ export class JsonStore {
     return this.db.submissions.find((s) => s.id === id) ?? null
   }
 
-  hasValue(fieldKey, value) {
-    return this.db.submissions.some((s) => String(s.values?.[fieldKey] ?? '') === value)
+  hasValue(formId, fieldKey, value) {
+    return this.db.submissions.some(
+      (s) => s.formId === formId && String(s.values?.[fieldKey] ?? '') === value,
+    )
   }
 
   nextSubmissionId() {
@@ -77,20 +116,39 @@ export class JsonStore {
     return sub
   }
 
-  submissionCount() {
-    return this.db.submissions.length
+  deleteSubmission(id) {
+    this.db.notifications = this.db.notifications.filter((n) => n.submissionId !== id)
+    this.db.submissions = this.db.submissions.filter((s) => s.id !== id)
+    this.#flush()
   }
 
-  latestSubmissionAt() {
-    return this.db.submissions.reduce(
-      (m, s) => (s.submittedAt > m ? s.submittedAt : m),
-      '',
-    ) || null
+  submissionCount(formId) {
+    return this.db.submissions.filter((s) => s.formId === formId).length
   }
 
-  trackCounts() {
+  latestSubmissionAt(formId) {
+    return (
+      this.db.submissions
+        .filter((s) => s.formId === formId)
+        .reduce((m, s) => (s.submittedAt > m ? s.submittedAt : m), '') || null
+    )
+  }
+
+  trackCounts(formId) {
     const counts = {}
-    for (const s of this.db.submissions) counts[s.track] = (counts[s.track] ?? 0) + 1
+    for (const s of this.db.submissions) {
+      if (s.formId === formId) counts[s.track ?? '—'] = (counts[s.track ?? '—'] ?? 0) + 1
+    }
+    return counts
+  }
+
+  dailyCounts(formId) {
+    const counts = {}
+    for (const s of this.db.submissions) {
+      if (s.formId !== formId) continue
+      const day = s.submittedAt.slice(0, 10)
+      counts[day] = (counts[day] ?? 0) + 1
+    }
     return counts
   }
 
@@ -108,8 +166,8 @@ export class JsonStore {
     this.#flush()
   }
 
-  listWebhookLogs() {
-    return this.db.webhookLogs.slice(0, 50)
+  listWebhookLogs(formId) {
+    return this.db.webhookLogs.filter((l) => l.formId === formId).slice(0, 50)
   }
 
   getWebhookLog(id) {
@@ -123,7 +181,10 @@ export class JsonStore {
       at: new Date().toISOString(),
       fields,
     })
-    this.db.versions = this.db.versions.slice(0, 50)
+    this.db.versions = this.db.versions
+      .filter((v) => v.formId === formId)
+      .slice(0, 50)
+      .concat(this.db.versions.filter((v) => v.formId !== formId))
     this.#flush()
   }
 

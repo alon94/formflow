@@ -190,6 +190,9 @@ export interface FormDoc {
   id: string
   slug: string
   name: string
+  folder?: string
+  icon?: string
+  workspaceId?: string
   status: FormStatus
   version: number
   publishedAt?: string

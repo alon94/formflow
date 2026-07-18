@@ -14,7 +14,9 @@ import {
   defaultNotif,
   defaultSettings,
   defaultWebhooks,
+  FORM_ID,
   FORM_NAME,
+  FORM_SLUG,
   seedFields,
   seedRules,
 } from './data'
@@ -46,9 +48,12 @@ interface AppStore {
   completeOnboarding: () => void
   serverReady: boolean
   saveState: SaveState
+  formId: string
+  formSlug: string
   formName: string
   setFormName: (name: string) => void
   formStatus: FormStatus
+  loadForm: (idOrSlug: string, opts?: { publicView?: boolean }) => void
   fields: FormField[]
   setFields: (next: FormField[]) => void
   rules: LogicRule[]
@@ -70,7 +75,7 @@ const THEME_KEY = 'formflow.theme'
 const USER_KEY = 'formflow.user'
 const ONBOARDING_KEY = 'formflow.onboarding-done'
 /* static hosting (no API): edits persist per-browser so the demo survives reloads */
-const OFFLINE_DOC_KEY = 'formflow.offline-doc'
+const offlineDocKey = (formId: string) => `formflow.offline-doc.${formId}`
 
 interface OfflineDoc {
   fields: FormField[]
@@ -90,7 +95,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   })
   const [serverReady, setServerReady] = useState(false)
   const [saveState, setSaveState] = useState<SaveState>('saved')
-  const [formStatus, setFormStatus] = useState<FormStatus>('draft')
+  const [formId, setFormId] = useState(FORM_ID)
+  const [formSlug, setFormSlug] = useState(FORM_SLUG)
+  const [formStatus, setFormStatus] = useState<FormStatus>('published')
   const [fields, setFieldsState] = useState<FormField[]>(seedFields)
   const [rules, setRulesState] = useState<LogicRule[]>(seedRules)
   const [branding, setBrandingState] = useState<BrandingState>(defaultBranding)
@@ -115,45 +122,81 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(THEME_KEY, theme)
   }, [theme])
 
-  /* load server truth once */
-  useEffect(() => {
-    let cancelled = false
-    api
-      .getForm()
-      .then((form) => {
-        if (cancelled) return
-        setFieldsState(form.fields)
-        setRulesState(form.rules)
-        setBrandingState(form.branding)
-        setNotifState(form.notif)
-        setWebhooksState(form.webhooks ?? defaultWebhooks)
-        setSettingsState(form.settings ?? defaultSettings)
-        setFormNameState(form.name)
-        setFormStatus(form.status)
-        setServerReady(true)
-      })
-      .catch(() => {
-        if (cancelled) return
-        setSaveState('offline')
-        try {
-          const raw = localStorage.getItem(OFFLINE_DOC_KEY)
-          if (raw) {
-            const doc = JSON.parse(raw) as OfflineDoc
-            setFieldsState(doc.fields)
-            setRulesState(doc.rules)
-            setBrandingState(doc.branding)
-            setNotifState(doc.notif)
-            setWebhooksState(doc.webhooks)
-            setSettingsState(doc.settings)
-            setFormNameState(doc.name)
-          }
-        } catch {
-          /* corrupted offline doc — keep seeds */
+  const applyDoc = useCallback(
+    (doc: {
+      id?: string
+      slug?: string
+      name: string
+      status?: FormStatus
+      fields: FormField[]
+      rules: LogicRule[]
+      branding: BrandingState
+      notif?: NotifState
+      webhooks?: WebhookConfig[]
+      settings?: FormSettings
+    }) => {
+      if (doc.id) setFormId(doc.id)
+      if (doc.slug) setFormSlug(doc.slug)
+      setFormNameState(doc.name)
+      if (doc.status) setFormStatus(doc.status)
+      setFieldsState(doc.fields)
+      setRulesState(doc.rules)
+      setBrandingState(doc.branding)
+      if (doc.notif) setNotifState(doc.notif)
+      setWebhooksState(doc.webhooks ?? [])
+      setSettingsState(doc.settings ?? defaultSettings)
+    },
+    [],
+  )
+
+  const hydrateOffline = useCallback(
+    (idOrSlug: string) => {
+      setSaveState('offline')
+      try {
+        const raw = localStorage.getItem(offlineDocKey(idOrSlug))
+        if (raw) {
+          const doc = JSON.parse(raw) as OfflineDoc
+          applyDoc({ ...doc, id: idOrSlug, slug: idOrSlug })
         }
-      })
-    return () => {
-      cancelled = true
-    }
+      } catch {
+        /* corrupted offline doc — keep seeds */
+      }
+    },
+    [applyDoc],
+  )
+
+  const loadForm = useCallback(
+    (idOrSlug: string, opts?: { publicView?: boolean }) => {
+      setServerReady(false)
+      const fetcher = opts?.publicView ? api.getPublicForm(idOrSlug) : api.getForm(idOrSlug)
+      fetcher
+        .then((form) => {
+          applyDoc(form as Parameters<typeof applyDoc>[0])
+          setSaveState('saved')
+          setServerReady(true)
+        })
+        .catch(() => hydrateOffline(idOrSlug))
+    },
+    [applyDoc, hydrateOffline],
+  )
+
+  /* debounced autosave of edited groups to the server */
+  const pendingPatch = useRef<Record<string, unknown>>({})
+  const patchTimer = useRef<number | undefined>(undefined)
+  const formIdRef = useRef(formId)
+  formIdRef.current = formId
+  const queuePatch = useCallback((key: string, value: unknown) => {
+    pendingPatch.current[key] = value
+    setSaveState((s) => (s === 'offline' ? s : 'saving'))
+    window.clearTimeout(patchTimer.current)
+    patchTimer.current = window.setTimeout(() => {
+      const patch = pendingPatch.current
+      pendingPatch.current = {}
+      api
+        .patchForm(formIdRef.current, patch)
+        .then(() => setSaveState('saved'))
+        .catch(() => setSaveState('offline'))
+    }, 900)
   }, [])
 
   /* while offline, mirror every edit to localStorage (debounced) */
@@ -169,27 +212,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         settings,
         name: formName,
       }
-      localStorage.setItem(OFFLINE_DOC_KEY, JSON.stringify(doc))
+      localStorage.setItem(offlineDocKey(formIdRef.current), JSON.stringify(doc))
+      localStorage.setItem(offlineDocKey(formSlug), JSON.stringify(doc))
     }, 600)
     return () => window.clearTimeout(t)
-  }, [saveState, fields, rules, branding, notif, webhooks, settings, formName])
-
-  /* debounced autosave of edited groups to the server */
-  const pendingPatch = useRef<Record<string, unknown>>({})
-  const patchTimer = useRef<number | undefined>(undefined)
-  const queuePatch = useCallback((key: string, value: unknown) => {
-    pendingPatch.current[key] = value
-    setSaveState((s) => (s === 'offline' ? s : 'saving'))
-    window.clearTimeout(patchTimer.current)
-    patchTimer.current = window.setTimeout(() => {
-      const patch = pendingPatch.current
-      pendingPatch.current = {}
-      api
-        .patchForm(patch)
-        .then(() => setSaveState('saved'))
-        .catch(() => setSaveState('offline'))
-    }, 900)
-  }, [])
+  }, [saveState, fields, rules, branding, notif, webhooks, settings, formName, formSlug])
 
   const toggleTheme = useCallback(
     () => setTheme((t) => (t === 'light' ? 'dark' : 'light')),
@@ -199,18 +226,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const login = useCallback((u: AppUser) => {
     setUser(u)
     localStorage.setItem(USER_KEY, JSON.stringify(u))
+    setOnboardingDone(localStorage.getItem(`${ONBOARDING_KEY}.${u.email}`) === '1')
   }, [])
 
   const logout = useCallback(() => {
     setUser(null)
     setOnboardingDone(false)
     localStorage.removeItem(USER_KEY)
-    localStorage.removeItem(ONBOARDING_KEY)
   }, [])
 
   const completeOnboarding = useCallback(() => {
     setOnboardingDone(true)
     localStorage.setItem(ONBOARDING_KEY, '1')
+    const raw = localStorage.getItem(USER_KEY)
+    if (raw) {
+      try {
+        const u = JSON.parse(raw) as AppUser
+        localStorage.setItem(`${ONBOARDING_KEY}.${u.email}`, '1')
+      } catch {
+        /* ignore */
+      }
+    }
   }, [])
 
   const setFields = useCallback(
@@ -280,7 +316,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const publish = useCallback(async () => {
     try {
-      const form = await api.publishForm()
+      const form = await api.publishForm(formIdRef.current)
       setFormStatus(form.status)
     } catch {
       setFormStatus('published') /* optimistic when offline */
@@ -298,9 +334,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       completeOnboarding,
       serverReady,
       saveState,
+      formId,
+      formSlug,
       formName,
       setFormName,
       formStatus,
+      loadForm,
       fields,
       setFields,
       rules,
@@ -325,9 +364,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       completeOnboarding,
       serverReady,
       saveState,
+      formId,
+      formSlug,
       formName,
       setFormName,
       formStatus,
+      loadForm,
       fields,
       setFields,
       rules,

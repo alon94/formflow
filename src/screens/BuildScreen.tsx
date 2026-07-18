@@ -53,15 +53,17 @@ import type { FieldType, FormField } from '../lib/types'
 
 /* version history modal (spec §4.1.1 — עד 50 גרסאות עם שחזור) */
 function VersionsModal({
+  formId,
   onRestore,
   onClose,
 }: {
+  formId: string
   onRestore: (fields: FormField[]) => void
   onClose: () => void
 }) {
   const { data: versions } = useQuery({
-    queryKey: ['versions'],
-    queryFn: api.getVersions,
+    queryKey: ['versions', formId],
+    queryFn: () => api.getVersions(formId),
     refetchOnMount: 'always',
   })
   const [busy, setBusy] = useState<string | null>(null)
@@ -69,7 +71,7 @@ function VersionsModal({
   const restore = async (id: string) => {
     setBusy(id)
     try {
-      const v = await api.getVersion(id)
+      const v = await api.getVersion(formId, id)
       onRestore(v.fields)
       onClose()
     } finally {
@@ -342,7 +344,7 @@ const VALIDATION_LABELS: Record<string, string[]> = {
 }
 
 export default function BuildScreen() {
-  const { fields, setFields, rules, formName } = useStore()
+  const { fields, setFields, rules, formName, formId } = useStore()
   const isConference = formName.includes('כנס')
   const [selectedId, setSelectedId] = useState<string | null>('fld-email')
   const [libSearch, setLibSearch] = useState('')
@@ -841,6 +843,7 @@ export default function BuildScreen() {
 
       {showVersions && (
         <VersionsModal
+          formId={formId}
           onRestore={(restored) => commit(restored)}
           onClose={() => setShowVersions(false)}
         />

@@ -1,7 +1,8 @@
 import { ShieldCheck } from 'lucide-react'
 import { useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import LogoMark from '../components/LogoMark'
+import { api } from '../lib/api'
 import { useStore } from '../lib/store'
 
 type Mode = 'login' | 'signup'
@@ -31,6 +32,8 @@ function MicrosoftIcon() {
 export default function LoginScreen() {
   const { login, onboardingDone } = useStore()
   const navigate = useNavigate()
+  const location = useLocation()
+  const returnTo = (location.state as { from?: string } | null)?.from ?? '/'
   const [mode, setMode] = useState<Mode>('login')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -51,9 +54,15 @@ export default function LoginScreen() {
     return Object.keys(next).length === 0
   }
 
-  const finishLogin = (u: { name: string; email: string }) => {
+  const finishLogin = async (u: { name: string; email: string }) => {
     login(u)
-    navigate(onboardingDone ? '/' : '/onboarding')
+    try {
+      /* creates the customer's workspace on first login (clear tenant separation) */
+      const session = await api.createSession(u.email, u.name)
+      navigate(session.formsCount === 0 ? '/onboarding' : returnTo)
+    } catch {
+      navigate(onboardingDone ? returnTo : '/onboarding')
+    }
   }
 
   const submit = () => {

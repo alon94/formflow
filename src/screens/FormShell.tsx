@@ -1,12 +1,11 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Check, Download, Mail, Play, X } from 'lucide-react'
-import { useCallback, useRef, useState } from 'react'
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link, NavLink, Outlet, useLocation, useParams } from 'react-router-dom'
 import LogoMark from '../components/LogoMark'
 import ShareBlock from '../components/ShareBlock'
 import { AvatarMenu, ThemeButton } from '../components/AdminTopbar'
 import { api } from '../lib/api'
-import { FORM_SLUG } from '../lib/data'
 import { useStore } from '../lib/store'
 
 export interface FormShellContext {
@@ -45,14 +44,20 @@ function PublishModal({ onClose }: { onClose: () => void }) {
 }
 
 export default function FormShell() {
-  const { saveState, formStatus, publish, formName } = useStore()
+  const { saveState, formStatus, publish, formName, formSlug, formId, loadForm } = useStore()
   const location = useLocation()
+  const params = useParams()
   const [showPublish, setShowPublish] = useState(false)
   const exportRef = useRef<(() => void) | null>(null)
 
+  /* the shell owns loading the routed form into the store */
+  useEffect(() => {
+    if (params.formId) loadForm(params.formId)
+  }, [params.formId, loadForm])
+
   const { data: analytics } = useQuery({
-    queryKey: ['analytics'],
-    queryFn: api.getAnalytics,
+    queryKey: ['analytics', formId],
+    queryFn: () => api.getAnalytics(formId),
   })
 
   const testSend = useMutation({ mutationFn: () => api.testNotification('email') })
@@ -84,7 +89,7 @@ export default function FormShell() {
         <span className="save-indicator" role="status">
           {saveLabel}
         </span>
-        <Link to={`/f/${FORM_SLUG}`} target="_blank" className="btn btn-secondary">
+        <Link to={`/f/${formSlug}`} target="_blank" className="btn btn-secondary">
           תצוגה מקדימה
         </Link>
         {publishButton}
@@ -155,7 +160,7 @@ export default function FormShell() {
           <TabLink to="design">עיצוב</TabLink>
           <TabLink to="settings">הגדרות</TabLink>
           <TabLink to="responses">
-            תשובות <span className="tab-badge">{analytics?.total ?? 128}</span>
+            תשובות <span className="tab-badge">{analytics?.total ?? 0}</span>
           </TabLink>
         </nav>
         <div className="topbar-actions">

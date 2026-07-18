@@ -2,12 +2,11 @@ import { Copy } from 'lucide-react'
 import QRCode from 'qrcode'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { FORM_SLUG } from '../lib/data'
 import { useStore } from '../lib/store'
 
 export default function ShareBlock() {
-  const { formName } = useStore()
-  const publicUrl = `${window.location.origin}/f/${FORM_SLUG}`
+  const { formName, formSlug } = useStore()
+  const publicUrl = `${window.location.origin}/f/${formSlug}`
   const [qr, setQr] = useState<string | null>(null)
   const [copied, setCopied] = useState<'link' | 'embed' | null>(null)
 
@@ -38,7 +37,7 @@ export default function ShareBlock() {
         <button type="button" className="btn btn-primary" onClick={() => copy(publicUrl, 'link')}>
           <Copy size={13} aria-hidden="true" /> {copied === 'link' ? 'הועתק ✓' : 'העתקה'}
         </button>
-        <Link className="btn btn-secondary" to={`/f/${FORM_SLUG}`} target="_blank">
+        <Link className="btn btn-secondary" to={`/f/${formSlug}`} target="_blank">
           פתיחה
         </Link>
       </div>

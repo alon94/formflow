@@ -10,7 +10,8 @@ import { useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import LogoMark from '../components/LogoMark'
 import Toggle from '../components/Toggle'
-import { FORM_ID } from '../lib/data'
+import { api } from '../lib/api'
+import { defaultBranding, defaultNotif, defaultSettings, FORM_ID } from '../lib/data'
 import { useStore } from '../lib/store'
 import type { FormField } from '../lib/types'
 
@@ -43,6 +44,7 @@ const CATALOG: QuickField[] = [
 const TEMPLATES = [
   {
     id: 'scratch',
+    iconKey: 'file',
     icon: <FilePlus2 size={18} />,
     title: 'טופס ריק',
     desc: 'מתחילים מאפס ובוחרים שדות בעצמכם',
@@ -52,6 +54,7 @@ const TEMPLATES = [
   },
   {
     id: 'event',
+    iconKey: 'ticket',
     icon: <Ticket size={18} />,
     title: 'הרשמה לאירוע',
     desc: 'פרטי קשר, בחירת מסלול ואישור תקנון',
@@ -61,6 +64,7 @@ const TEMPLATES = [
   },
   {
     id: 'contact',
+    iconKey: 'phone',
     icon: <Briefcase size={18} />,
     title: 'צור קשר / ליד',
     desc: 'ליד נקי ל-CRM: פרטי קשר וחברה + הודעה',
@@ -70,6 +74,7 @@ const TEMPLATES = [
   },
   {
     id: 'feedback',
+    iconKey: 'file',
     icon: <MessageSquare size={18} />,
     title: 'משוב לקוחות',
     desc: 'דירוג + טקסט חופשי, אנונימי או מזוהה',
@@ -79,6 +84,7 @@ const TEMPLATES = [
   },
   {
     id: 'hr',
+    iconKey: 'hand',
     icon: <UserPlus size={18} />,
     title: 'קליטת עובד/ת',
     desc: 'פרטים אישיים מלאים לתחילת עבודה',
@@ -92,7 +98,7 @@ const FOLDERS = ['כללי', 'אירועים', 'מכירות', 'משוב', 'HR']
 const TOTAL = 4
 
 export default function NewFormWizard() {
-  const { setFields, setFormName, setNotif } = useStore()
+  const { setFields, setFormName, setNotif, user } = useStore()
   const navigate = useNavigate()
   const location = useLocation()
   const preselect = (location.state as { template?: string } | null)?.template
@@ -133,7 +139,7 @@ export default function NewFormWizard() {
     [selectedKeys],
   )
 
-  const create = () => {
+  const create = async () => {
     setCreating(true)
     const finalName = name.trim() || template.name
     const fields: FormField[] = fieldsPreview.map((f, i) => ({
@@ -150,10 +156,32 @@ export default function NewFormWizard() {
       errorMessage: f.type === 'email' ? 'נא להזין כתובת מייל תקינה' : undefined,
       page: 1,
     }))
-    setFormName(finalName)
-    setFields(fields)
-    setNotif({ confirmEnabled: confirmEmail, ownerEnabled: notifyOwner })
-    window.setTimeout(() => navigate(`/form/${FORM_ID}/build`), 350)
+    const notifDoc = {
+      ...defaultNotif,
+      subject: `קיבלנו את הפנייה שלך — ${finalName}`,
+      confirmEnabled: confirmEmail,
+      ownerEnabled: notifyOwner,
+      recipients: user ? [user.email] : defaultNotif.recipients,
+    }
+    try {
+      /* the wizard provisions the form infrastructure, then building starts */
+      const form = await api.createForm({
+        name: finalName,
+        folder,
+        icon: template.iconKey,
+        fields,
+        notif: notifDoc,
+        branding: { ...defaultBranding },
+        settings: { ...defaultSettings },
+      })
+      navigate(`/form/${form.id}/build`)
+    } catch {
+      /* offline/static demo — build into the local demo form instead */
+      setFormName(finalName)
+      setFields(fields)
+      setNotif({ confirmEnabled: confirmEmail, ownerEnabled: notifyOwner })
+      window.setTimeout(() => navigate(`/form/${FORM_ID}/build`), 350)
+    }
   }
 
   const next = () => {

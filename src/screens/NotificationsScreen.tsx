@@ -18,7 +18,7 @@ import ShareBlock from '../components/ShareBlock'
 import Toggle from '../components/Toggle'
 import LogoMark from '../components/LogoMark'
 import { api } from '../lib/api'
-import { FORM_SLUG, relTime, smsLog } from '../lib/data'
+import { relTime, smsLog } from '../lib/data'
 import { useStore } from '../lib/store'
 import type { WebhookConfig } from '../lib/types'
 
@@ -268,14 +268,14 @@ function NotificationsPanel() {
 
 /* ---------- Webhooks (spec §4.9.2) ---------- */
 function WebhooksPanel() {
-  const { webhooks, setWebhooks } = useStore()
+  const { webhooks, setWebhooks, formId } = useStore()
   const queryClient = useQueryClient()
   const [newUrl, setNewUrl] = useState('')
   const [revealed, setRevealed] = useState<Set<string>>(new Set())
 
   const { data: logs } = useQuery({
-    queryKey: ['webhook-logs'],
-    queryFn: api.getWebhookLogs,
+    queryKey: ['webhook-logs', formId],
+    queryFn: () => api.getWebhookLogs(formId),
   })
 
   const retry = useMutation({
@@ -486,7 +486,7 @@ function PublishPanel() {
 
 /* ---------- כללי ---------- */
 function GeneralPanel() {
-  const { formName, setFormName } = useStore()
+  const { formName, setFormName, formSlug } = useStore()
   return (
     <section className="ntf-card">
       <div className="ntf-title" style={{ fontSize: 15 }}>
@@ -507,7 +507,7 @@ function GeneralPanel() {
         <div className="set-group">
           <span className="field-label">קישור (Slug)</span>
           <span className="text-input mono" dir="ltr" style={{ color: 'var(--text-muted)' }}>
-            /f/{FORM_SLUG}
+            /f/{formSlug}
           </span>
         </div>
         <div className="set-group">

@@ -1,6 +1,7 @@
 import { useMutation } from '@tanstack/react-query'
 import { Check, Moon, Sun } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useParams } from 'react-router-dom'
 import { computeFillState, skippedPages } from '../../shared/rules.js'
 import { validateValue } from '../../shared/validate.js'
 import LogoMark, { LogoArrow } from '../components/LogoMark'
@@ -9,7 +10,7 @@ import { useStore } from '../lib/store'
 import type { FormField, NotificationEntry, Submission } from '../lib/types'
 import { isLightColor } from './DesignScreen'
 
-const DRAFT_KEY = 'formflow.public.draft'
+const draftKeyFor = (slug: string) => `formflow.public.draft.${slug}`
 
 const PAGE_TITLES: Record<number, string> = {
   1: 'פרטי מועדון',
@@ -20,8 +21,14 @@ const PAGE_TITLES: Record<number, string> = {
 type Values = Record<string, string>
 
 export default function PublicFormScreen() {
-  const { fields, rules, branding, formName, notif } = useStore()
+  const { fields, rules, branding, formName, notif, formId, loadForm } = useStore()
+  const params = useParams()
   const isConference = formName.includes('כנס')
+
+  /* load the routed form (public view) */
+  useEffect(() => {
+    if (params.slug) loadForm(params.slug, { publicView: true })
+  }, [params.slug, loadForm])
 
   /* theme resolution: form setting (אוטומטי/בהיר/כהה) + local visitor override */
   const [override, setOverride] = useState<'light' | 'dark' | null>(null)
@@ -60,7 +67,7 @@ export default function PublicFormScreen() {
     if (restored.current) return
     restored.current = true
     try {
-      const raw = localStorage.getItem(DRAFT_KEY)
+      const raw = localStorage.getItem(draftKeyFor(params.slug ?? ''))
       if (raw) {
         const draft = JSON.parse(raw) as { values: Values; page: number }
         setValues(draft.values ?? {})
@@ -74,7 +81,7 @@ export default function PublicFormScreen() {
   useEffect(() => {
     if (result) return
     const t = window.setTimeout(
-      () => localStorage.setItem(DRAFT_KEY, JSON.stringify({ values, page })),
+      () => localStorage.setItem(draftKeyFor(params.slug ?? ''), JSON.stringify({ values, page })),
       500,
     )
     return () => window.clearTimeout(t)
@@ -124,9 +131,9 @@ export default function PublicFormScreen() {
   }
 
   const submit = useMutation({
-    mutationFn: () => api.postSubmission(values),
+    mutationFn: () => api.postSubmission(formId, values),
     onSuccess: (data) => {
-      localStorage.removeItem(DRAFT_KEY)
+      localStorage.removeItem(draftKeyFor(params.slug ?? ''))
       setResult(data)
       window.scrollTo({ top: 0 })
     },
@@ -175,7 +182,7 @@ export default function PublicFormScreen() {
             }),
           )
         }
-        localStorage.removeItem(DRAFT_KEY)
+        localStorage.removeItem(draftKeyFor(params.slug ?? ''))
         setResult({
           submission: {
             id: 1129,

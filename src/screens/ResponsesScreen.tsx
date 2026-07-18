@@ -16,7 +16,7 @@ import {
 } from 'recharts'
 import SubmissionDrawer from '../components/SubmissionDrawer'
 import { api, type SubmissionFilters } from '../lib/api'
-import { relTime, seedSubmissions } from '../lib/data'
+import { FORM_ID, relTime, seedSubmissions } from '../lib/data'
 import { useStore } from '../lib/store'
 import type { AnalyticsPayload, HandleStatus } from '../lib/types'
 import type { FormShellContext } from './FormShell'
@@ -86,7 +86,7 @@ const FALLBACK_ANALYTICS: AnalyticsPayload = {
 type Range = 'day' | 'week' | 'month'
 
 export default function ResponsesScreen() {
-  const { theme } = useStore()
+  const { theme, formId } = useStore()
   const { setExportHandler } = useOutletContext<FormShellContext>()
   const queryClient = useQueryClient()
   const [range, setRange] = useState<Range>('day')
@@ -103,23 +103,24 @@ export default function ResponsesScreen() {
   )
 
   const { data: subsData, isError: subsError } = useQuery({
-    queryKey: ['submissions', filters],
-    queryFn: () => api.getSubmissions(filters),
+    queryKey: ['submissions', formId, filters],
+    queryFn: () => api.getSubmissions(formId, filters),
     placeholderData: keepPreviousData,
   })
 
   const { data: analyticsData } = useQuery({
-    queryKey: ['analytics'],
-    queryFn: api.getAnalytics,
+    queryKey: ['analytics', formId],
+    queryFn: () => api.getAnalytics(formId),
   })
 
   const analytics = analyticsData ?? FALLBACK_ANALYTICS
-  const submissions = subsData?.items ?? (subsError ? seedSubmissions : [])
+  const isConference = formId === FORM_ID
+  const submissions = subsData?.items ?? (subsError && isConference ? seedSubmissions : [])
 
   /* realtime via SSE (spec §4.6.2) */
   const flashTimer = useRef<number | undefined>(undefined)
   useEffect(() => {
-    const source = new EventSource(api.eventsUrl())
+    const source = new EventSource(api.eventsUrl(formId))
     const onCreated = (e: MessageEvent) => {
       try {
         const { submission } = JSON.parse(e.data) as { submission: { id: number } }
@@ -141,20 +142,15 @@ export default function ResponsesScreen() {
       window.clearTimeout(flashTimer.current)
       source.close()
     }
-  }, [queryClient])
+  }, [queryClient, formId])
 
   /* export respects the active filters (spec §4.6.3) */
   useEffect(() => {
     setExportHandler(() => {
-      const a = document.createElement('a')
-      a.href = api.exportUrl(filters, 'xlsx')
-      a.download = 'formflow-responses.xlsx'
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
+      api.downloadExport(formId, filters, 'xlsx').catch(() => {})
     })
     return () => setExportHandler(null)
-  }, [filters, setExportHandler])
+  }, [formId, filters, setExportHandler])
 
   return (
     <main className="page-body">
@@ -171,17 +167,17 @@ export default function ResponsesScreen() {
         </div>
         <div className="kpi-card">
           <div className="kpi-label">אחוז השלמה</div>
-          <div className="kpi-value blue">{analytics.completion}%</div>
+          <div className="kpi-value blue">{analytics.completion == null ? '—' : `${analytics.completion}%`}</div>
           <div className="kpi-sub">יעד: 75%</div>
         </div>
         <div className="kpi-card">
           <div className="kpi-label">זמן מילוי ממוצע</div>
-          <div className="kpi-value">{analytics.avgTime}</div>
+          <div className="kpi-value">{analytics.avgTime ?? '—'}</div>
           <div className="kpi-sub">דקות</div>
         </div>
         <div className="kpi-card">
           <div className="kpi-label">ציון NPS</div>
-          <div className="kpi-value green">+{analytics.nps}</div>
+          <div className="kpi-value green">{analytics.nps == null ? '—' : `+${analytics.nps}`}</div>
           <div className="kpi-sub">62% Promoters</div>
         </div>
         <div className="kpi-card">
@@ -246,6 +242,7 @@ export default function ResponsesScreen() {
           </div>
         </div>
 
+        {analytics.trackSplit.length > 0 && (
         <div className="chart-card">
           <div className="chart-title">התפלגות מסלולים</div>
           <div className="donut-wrap">
@@ -280,7 +277,9 @@ export default function ResponsesScreen() {
             </div>
           </div>
         </div>
+        )}
 
+        {analytics.workshopInterest.length > 0 && (
         <div className="chart-card">
           <div className="chart-title">דירוג עניין בסדנאות</div>
           <div style={{ height: 118, marginTop: 10 }}>
@@ -307,6 +306,7 @@ export default function ResponsesScreen() {
           </div>
           <div className="chart-foot">ממוצע 3.8 · חציון 4</div>
         </div>
+        )}
       </div>
 
       <div className="subs-table">

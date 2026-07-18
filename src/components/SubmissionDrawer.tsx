@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Mail, MessageCircle, X } from 'lucide-react'
+import { Mail, MessageCircle, Trash2, X } from 'lucide-react'
 import { api } from '../lib/api'
 import { relTime } from '../lib/data'
 import { useStore } from '../lib/store'
+import { useState } from 'react'
 import type { HandleStatus } from '../lib/types'
 
 const HANDLE_LABEL: Record<HandleStatus, string> = {
@@ -20,6 +21,7 @@ export default function SubmissionDrawer({
 }) {
   const { fields } = useStore()
   const queryClient = useQueryClient()
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   const { data } = useQuery({
     queryKey: ['submission', id],
@@ -32,6 +34,15 @@ export default function SubmissionDrawer({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['submission', id] })
       queryClient.invalidateQueries({ queryKey: ['submissions'] })
+    },
+  })
+
+  const del = useMutation({
+    mutationFn: () => api.deleteSubmission(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['submissions'] })
+      queryClient.invalidateQueries({ queryKey: ['analytics'] })
+      onClose()
     },
   })
 
@@ -49,8 +60,28 @@ export default function SubmissionDrawer({
           </div>
           <button
             type="button"
+            className={confirmDelete ? 'btn' : 'icon-btn'}
+            style={
+              confirmDelete
+                ? {
+                    marginInlineStart: 'auto',
+                    background: 'var(--error)',
+                    color: '#fff',
+                    padding: '6px 14px',
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                  }
+                : { marginInlineStart: 'auto', color: 'var(--error)' }
+            }
+            onClick={() => (confirmDelete ? del.mutate() : setConfirmDelete(true))}
+            onBlur={() => setConfirmDelete(false)}
+            aria-label={confirmDelete ? 'אישור מחיקת הרשומה' : 'מחיקת הרשומה'}
+          >
+            {confirmDelete ? (del.isPending ? 'מוחק…' : 'אישור מחיקה?') : <Trash2 size={15} />}
+          </button>
+          <button
+            type="button"
             className="icon-btn"
-            style={{ marginInlineStart: 'auto' }}
             onClick={onClose}
             aria-label="סגירת החלונית"
           >
