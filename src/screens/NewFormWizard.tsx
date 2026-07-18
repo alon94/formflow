@@ -100,6 +100,7 @@ export default function NewFormWizard() {
   const [step, setStep] = useState(1)
   const [templateId, setTemplateId] = useState(preselect ?? 'event')
   const [name, setName] = useState('')
+  const [nameTouched, setNameTouched] = useState(false)
   const [folder, setFolder] = useState('אירועים')
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(
     () => new Set(TEMPLATES.find((t) => t.id === (preselect ?? 'event'))!.keys),
@@ -115,7 +116,8 @@ export default function NewFormWizard() {
     setTemplateId(id)
     setSelectedKeys(new Set(t.keys))
     setFolder(t.folder)
-    if (!name.trim()) setName(t.name)
+    /* switching templates refreshes the suggested name unless the user typed one */
+    if (!nameTouched) setName(t.name)
   }
 
   const toggleKey = (key: string) =>
@@ -223,7 +225,10 @@ export default function NewFormWizard() {
                 className="pub-input"
                 value={name}
                 autoFocus
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => {
+                  setName(e.target.value)
+                  setNameTouched(e.target.value.trim() !== '')
+                }}
                 placeholder={template.name}
               />
             </div>

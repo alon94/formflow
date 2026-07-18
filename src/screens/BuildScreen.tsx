@@ -342,7 +342,8 @@ const VALIDATION_LABELS: Record<string, string[]> = {
 }
 
 export default function BuildScreen() {
-  const { fields, setFields, rules } = useStore()
+  const { fields, setFields, rules, formName } = useStore()
+  const isConference = formName.includes('כנס')
   const [selectedId, setSelectedId] = useState<string | null>('fld-email')
   const [libSearch, setLibSearch] = useState('')
   const [libCat, setLibCat] = useState<'all' | 'text' | 'choice' | 'advanced'>('all')
@@ -581,9 +582,11 @@ export default function BuildScreen() {
         <section className="bld-panel bld-canvas" aria-label="קנבס הטופס">
           <div className={`canvas-form${device === 'mobile' ? ' mobile' : ''}`}>
             <div>
-              <span className="event-tag">🎟 12 בנובמבר · תל אביב</span>
-              <div className="canvas-title">הרשמה לכנס המוצר 2026</div>
-              <div className="canvas-sub">3 דקות וסיימתם — נשמח לראותכם!</div>
+              {isConference && <span className="event-tag">🎟 12 בנובמבר · תל אביב</span>}
+              <div className="canvas-title">{formName}</div>
+              <div className="canvas-sub">
+                {isConference ? '3 דקות וסיימתם — נשמח לראותכם!' : 'כמה פרטים קצרים ואנחנו שם'}
+              </div>
             </div>
             <div className="progress-track">
               <div className="progress-fill" style={{ width: '40%' }} />
@@ -622,7 +625,7 @@ export default function BuildScreen() {
               ＋ גררו שדה לכאן
             </div>
             <div className="canvas-footer">
-              <span className="submit-demo">שליחת הרשמה ←</span>
+              <span className="submit-demo">{isConference ? 'שליחת הרשמה ←' : 'שליחה ←'}</span>
               <span className="powered">
                 <LogoArrow size={13} /> מופעל ע״י שווה עסקים 360
               </span>

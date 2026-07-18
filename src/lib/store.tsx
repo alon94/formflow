@@ -69,6 +69,18 @@ const StoreContext = createContext<AppStore | null>(null)
 const THEME_KEY = 'formflow.theme'
 const USER_KEY = 'formflow.user'
 const ONBOARDING_KEY = 'formflow.onboarding-done'
+/* static hosting (no API): edits persist per-browser so the demo survives reloads */
+const OFFLINE_DOC_KEY = 'formflow.offline-doc'
+
+interface OfflineDoc {
+  fields: FormField[]
+  rules: LogicRule[]
+  branding: BrandingState
+  notif: NotifState
+  webhooks: WebhookConfig[]
+  settings: FormSettings
+  name: string
+}
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => {
@@ -121,12 +133,46 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setServerReady(true)
       })
       .catch(() => {
-        if (!cancelled) setSaveState('offline')
+        if (cancelled) return
+        setSaveState('offline')
+        try {
+          const raw = localStorage.getItem(OFFLINE_DOC_KEY)
+          if (raw) {
+            const doc = JSON.parse(raw) as OfflineDoc
+            setFieldsState(doc.fields)
+            setRulesState(doc.rules)
+            setBrandingState(doc.branding)
+            setNotifState(doc.notif)
+            setWebhooksState(doc.webhooks)
+            setSettingsState(doc.settings)
+            setFormNameState(doc.name)
+          }
+        } catch {
+          /* corrupted offline doc — keep seeds */
+        }
       })
     return () => {
       cancelled = true
     }
   }, [])
+
+  /* while offline, mirror every edit to localStorage (debounced) */
+  useEffect(() => {
+    if (saveState !== 'offline') return
+    const t = window.setTimeout(() => {
+      const doc: OfflineDoc = {
+        fields,
+        rules,
+        branding,
+        notif,
+        webhooks,
+        settings,
+        name: formName,
+      }
+      localStorage.setItem(OFFLINE_DOC_KEY, JSON.stringify(doc))
+    }, 600)
+    return () => window.clearTimeout(t)
+  }, [saveState, fields, rules, branding, notif, webhooks, settings, formName])
 
   /* debounced autosave of edited groups to the server */
   const pendingPatch = useRef<Record<string, unknown>>({})
