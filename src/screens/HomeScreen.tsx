@@ -10,7 +10,9 @@ import {
   MoreHorizontal,
   Phone,
   Plus,
+  Sparkles,
   Ticket,
+  X,
 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
@@ -18,6 +20,7 @@ import { useNavigate } from 'react-router-dom'
 import AdminTopbar from '../components/AdminTopbar'
 import { api } from '../lib/api'
 import { FORM_ID, relTime, seedForms } from '../lib/data'
+import { useStore } from '../lib/store'
 import type { FormStatus } from '../lib/types'
 
 const STATUS_LABEL: Record<FormStatus, string> = {
@@ -38,6 +41,7 @@ type Filter = 'all' | FormStatus
 
 export default function HomeScreen() {
   const navigate = useNavigate()
+  const { onboardingDone, completeOnboarding, user } = useStore()
   const [filter, setFilter] = useState<Filter>('all')
   const [search, setSearch] = useState('')
 
@@ -81,6 +85,30 @@ export default function HomeScreen() {
     <div className="admin-shell">
       <AdminTopbar search={search} onSearch={setSearch} />
       <main className="page-body">
+        {!onboardingDone && (
+          <div className="onb-banner fade-up">
+            <span className="icon-tile">
+              <Sparkles size={17} />
+            </span>
+            <div className="txt">
+              <div className="t1">
+                {user ? `היי ${user.name.split(' ')[0]}, ` : ''}בואו נשלים את ההגדרה הראשונית
+              </div>
+              <div className="t2">שלושה צעדים קצרים — שם Workspace, תחום ומטרה ראשונה</div>
+            </div>
+            <button type="button" className="btn btn-primary" onClick={() => navigate('/onboarding')}>
+              להתחלה
+            </button>
+            <button
+              type="button"
+              className="icon-btn"
+              aria-label="דחיית ההגדרה"
+              onClick={completeOnboarding}
+            >
+              <X size={15} />
+            </button>
+          </div>
+        )}
         <div className="home-title-row">
           <h1>הטפסים שלי</h1>
           <span className="count-chip">{filtered.length} טפסים</span>
@@ -88,11 +116,7 @@ export default function HomeScreen() {
             <button type="button" className="btn btn-secondary">
               <FolderPlus size={15} aria-hidden="true" /> תיקייה חדשה
             </button>
-            <button
-              type="button"
-              className="btn btn-lime"
-              onClick={() => navigate(`/form/${FORM_ID}/build`)}
-            >
+            <button type="button" className="btn btn-lime" onClick={() => navigate('/new')}>
               <Plus size={15} aria-hidden="true" /> טופס חדש
             </button>
           </div>

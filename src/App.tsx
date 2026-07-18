@@ -5,6 +5,9 @@ import FormShell from './screens/FormShell'
 import HomeScreen from './screens/HomeScreen'
 import IntegrationsScreen from './screens/IntegrationsScreen'
 import LogicScreen from './screens/LogicScreen'
+import LoginScreen from './screens/LoginScreen'
+import NewFormWizard from './screens/NewFormWizard'
+import OnboardingScreen from './screens/OnboardingScreen'
 import NotificationsScreen from './screens/NotificationsScreen'
 import PublicFormScreen from './screens/PublicFormScreen'
 import ResponsesScreen from './screens/ResponsesScreen'
@@ -14,6 +17,9 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<HomeScreen />} />
+      <Route path="/login" element={<LoginScreen />} />
+      <Route path="/onboarding" element={<OnboardingScreen />} />
+      <Route path="/new" element={<NewFormWizard />} />
       <Route path="/integrations" element={<IntegrationsScreen />} />
       <Route path="/templates" element={<TemplatesScreen />} />
       <Route path="/form/:formId" element={<FormShell />}>

@@ -4,7 +4,7 @@ import { useCallback, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import LogoMark from '../components/LogoMark'
 import ShareBlock from '../components/ShareBlock'
-import { ThemeButton } from '../components/AdminTopbar'
+import { AvatarMenu, ThemeButton } from '../components/AdminTopbar'
 import { api } from '../lib/api'
 import { FORM_SLUG } from '../lib/data'
 import { useStore } from '../lib/store'
@@ -161,6 +161,7 @@ export default function FormShell() {
         <div className="topbar-actions">
           {actions[section]}
           <ThemeButton />
+          <AvatarMenu />
         </div>
       </header>
       <Outlet context={ctx} />

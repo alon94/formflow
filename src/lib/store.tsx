@@ -31,9 +31,19 @@ import type {
 export type Theme = 'light' | 'dark'
 export type SaveState = 'saved' | 'saving' | 'offline'
 
+export interface AppUser {
+  name: string
+  email: string
+}
+
 interface AppStore {
   theme: Theme
   toggleTheme: () => void
+  user: AppUser | null
+  login: (user: AppUser) => void
+  logout: () => void
+  onboardingDone: boolean
+  completeOnboarding: () => void
   serverReady: boolean
   saveState: SaveState
   formName: string
@@ -57,6 +67,8 @@ interface AppStore {
 const StoreContext = createContext<AppStore | null>(null)
 
 const THEME_KEY = 'formflow.theme'
+const USER_KEY = 'formflow.user'
+const ONBOARDING_KEY = 'formflow.onboarding-done'
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => {
@@ -74,6 +86,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [webhooks, setWebhooksState] = useState<WebhookConfig[]>(defaultWebhooks)
   const [settings, setSettingsState] = useState<FormSettings>(defaultSettings)
   const [formName, setFormNameState] = useState(FORM_NAME)
+  const [user, setUser] = useState<AppUser | null>(() => {
+    try {
+      const raw = localStorage.getItem(USER_KEY)
+      return raw ? (JSON.parse(raw) as AppUser) : null
+    } catch {
+      return null
+    }
+  })
+  const [onboardingDone, setOnboardingDone] = useState(
+    () => localStorage.getItem(ONBOARDING_KEY) === '1',
+  )
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -126,6 +149,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     () => setTheme((t) => (t === 'light' ? 'dark' : 'light')),
     [],
   )
+
+  const login = useCallback((u: AppUser) => {
+    setUser(u)
+    localStorage.setItem(USER_KEY, JSON.stringify(u))
+  }, [])
+
+  const logout = useCallback(() => {
+    setUser(null)
+    setOnboardingDone(false)
+    localStorage.removeItem(USER_KEY)
+    localStorage.removeItem(ONBOARDING_KEY)
+  }, [])
+
+  const completeOnboarding = useCallback(() => {
+    setOnboardingDone(true)
+    localStorage.setItem(ONBOARDING_KEY, '1')
+  }, [])
 
   const setFields = useCallback(
     (next: FormField[]) => {
@@ -205,6 +245,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     () => ({
       theme,
       toggleTheme,
+      user,
+      login,
+      logout,
+      onboardingDone,
+      completeOnboarding,
       serverReady,
       saveState,
       formName,
@@ -227,6 +272,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [
       theme,
       toggleTheme,
+      user,
+      login,
+      logout,
+      onboardingDone,
+      completeOnboarding,
       serverReady,
       saveState,
       formName,

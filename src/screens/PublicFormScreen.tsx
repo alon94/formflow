@@ -20,7 +20,8 @@ const PAGE_TITLES: Record<number, string> = {
 type Values = Record<string, string>
 
 export default function PublicFormScreen() {
-  const { fields, rules, branding } = useStore()
+  const { fields, rules, branding, formName } = useStore()
+  const isConference = formName.includes('כנס')
 
   /* theme resolution: form setting (אוטומטי/בהיר/כהה) + local visitor override */
   const [override, setOverride] = useState<'light' | 'dark' | null>(null)
@@ -406,7 +407,7 @@ export default function PublicFormScreen() {
           <h1>ההרשמה נקלטה!</h1>
           <span className="sub-id-chip">הרשמה מס׳ {result.submission.id}</span>
           <p>
-            נתראה ב-12 בנובמבר במרכז הכנסים תל אביב 🎉
+            {isConference ? 'נתראה ב-12 בנובמבר במרכז הכנסים תל אביב 🎉' : 'תודה שמילאתם — הפרטים נקלטו אצלנו 🎉'}
           </p>
           {result.notifications.length > 0 && (
             <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -432,9 +433,13 @@ export default function PublicFormScreen() {
           }}
         >
           <div>
-            <span className="pub-event-tag">🎟 12 בנובמבר · מרכז הכנסים תל אביב</span>
-            <h1 className="pub-title">הרשמה לכנס המוצר 2026</h1>
-            <div className="pub-sub">3 דקות וסיימתם — נשמח לראותכם!</div>
+            {isConference && (
+              <span className="pub-event-tag">🎟 12 בנובמבר · מרכז הכנסים תל אביב</span>
+            )}
+            <h1 className="pub-title">{formName}</h1>
+            <div className="pub-sub">
+              {isConference ? '3 דקות וסיימתם — נשמח לראותכם!' : 'כמה פרטים קצרים ואנחנו שם'}
+            </div>
           </div>
 
           <div className="pub-progress-row">

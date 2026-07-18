@@ -13,7 +13,6 @@ import {
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AdminTopbar from '../components/AdminTopbar'
-import { FORM_ID } from '../lib/data'
 
 interface Template {
   name: string
@@ -21,12 +20,14 @@ interface Template {
   desc: string
   fields: number
   icon: React.ReactNode
+  wizardId?: string
 }
 
 /* template library per spec §4.7.1 categories */
 const TEMPLATES: Template[] = [
   {
     name: 'הרשמה לכנס / אירוע',
+    wizardId: 'event',
     category: 'אירועים',
     desc: 'מסלולים, מספר משתתפים, אישור הגעה ותזכורת SMS לפני האירוע',
     fields: 9,
@@ -34,6 +35,7 @@ const TEMPLATES: Template[] = [
   },
   {
     name: 'הרשמה לוובינר',
+    wizardId: 'event',
     category: 'אירועים',
     desc: 'שם, מייל, שאלה למרצה — עם קובץ iCal אוטומטי במייל האישור',
     fields: 5,
@@ -41,6 +43,7 @@ const TEMPLATES: Template[] = [
   },
   {
     name: 'צור קשר לעסק',
+    wizardId: 'contact',
     category: 'עסקי',
     desc: 'ליד חדש ישירות ל-CRM דרך Webhook, עם ניתוב לפי סוג הפנייה',
     fields: 6,
@@ -48,6 +51,7 @@ const TEMPLATES: Template[] = [
   },
   {
     name: 'משוב לקוחות NPS',
+    wizardId: 'feedback',
     category: 'עסקי',
     desc: 'סולם 0–10 עם חישוב Promoters/Detractors אוטומטי בדשבורד',
     fields: 4,
@@ -55,6 +59,7 @@ const TEMPLATES: Template[] = [
   },
   {
     name: 'קליטת עובד חדש',
+    wizardId: 'hr',
     category: 'HR',
     desc: 'פרטים אישיים, ת״ז עם ספרת ביקורת, העלאת מסמכים וחתימה',
     fields: 12,
@@ -62,6 +67,7 @@ const TEMPLATES: Template[] = [
   },
   {
     name: 'בקשת חופשה',
+    wizardId: 'hr',
     category: 'HR',
     desc: 'טווח תאריכים, סוג חופשה, ניתוב לאישור מנהל/ת ישיר/ה',
     fields: 5,
@@ -69,6 +75,7 @@ const TEMPLATES: Template[] = [
   },
   {
     name: 'הרשמה לקורס',
+    wizardId: 'event',
     category: 'חינוך',
     desc: 'בחירת מחזור, תשלום מקוון ותנאי ביטול — עם מכסת נרשמים',
     fields: 8,
@@ -76,6 +83,7 @@ const TEMPLATES: Template[] = [
   },
   {
     name: 'שאלון בריאות',
+    wizardId: 'scratch',
     category: 'בריאות',
     desc: 'הצהרת בריאות עם לוגיקה מותנית ושדות רגישים מוצפנים',
     fields: 10,
@@ -83,6 +91,7 @@ const TEMPLATES: Template[] = [
   },
   {
     name: 'טופס התעניינות בנכס',
+    wizardId: 'contact',
     category: 'נדל״ן',
     desc: 'פרטי קשר, תקציב וטווח חדרים — ליד חם ישירות לסוכן/ת',
     fields: 7,
@@ -90,6 +99,7 @@ const TEMPLATES: Template[] = [
   },
   {
     name: 'אישורי הגעה לחתונה',
+    wizardId: 'event',
     category: 'אירועים',
     desc: 'כמה מגיעים, העדפות תפריט וברכה — עם SMS תזכורת',
     fields: 5,
@@ -151,7 +161,7 @@ export default function TemplatesScreen() {
                   type="button"
                   className="btn btn-primary"
                   style={{ padding: '6px 18px', fontSize: 13 }}
-                  onClick={() => navigate(`/form/${FORM_ID}/build`)}
+                  onClick={() => navigate('/new', { state: { template: t.wizardId ?? 'scratch' } })}
                 >
                   שימוש בתבנית
                 </button>
