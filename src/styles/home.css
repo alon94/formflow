@@ -1,0 +1,137 @@
+/* ===== 01 ריכוז טפסים ===== */
+
+.home-title-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.home-title-row h1 {
+  font-weight: 800;
+  font-size: 24px;
+}
+
+.count-chip {
+  background: var(--card);
+  border: 1px solid var(--border-input);
+  border-radius: 999px;
+  padding: 3px 14px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.home-title-actions {
+  margin-inline-start: auto;
+  display: flex;
+  gap: 10px;
+}
+
+.home-filters {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.home-sort {
+  margin-inline-start: auto;
+  font-size: 13px;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.forms-table {
+  background: var(--card);
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid var(--border-card);
+}
+
+.forms-table .thead,
+.forms-table .trow {
+  display: grid;
+  grid-template-columns: 2.4fr 1fr 1fr 1fr 1.2fr 1fr;
+  column-gap: 12px;
+  padding: 14px 24px;
+  align-items: center;
+}
+
+.forms-table .thead {
+  background: var(--thead-bg);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-card);
+}
+
+.forms-table .trow {
+  padding: 16px 24px;
+  font-size: 14.5px;
+  border-bottom: 1px solid var(--row-border);
+  transition: background 0.15s ease;
+}
+
+.forms-table .trow:last-child {
+  border-bottom: 0;
+}
+
+.forms-table .trow:nth-child(odd) {
+  background: var(--row-zebra);
+}
+
+.forms-table .trow:hover {
+  background: var(--row-hover);
+}
+
+.forms-table .trow.clickable {
+  cursor: pointer;
+}
+
+.form-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.form-name-cell .name {
+  font-weight: 700;
+  color: var(--heading);
+}
+
+.form-name-cell .meta {
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.cell-strong {
+  font-weight: 700;
+  color: var(--heading);
+}
+
+.cell-completion {
+  font-weight: 700;
+  color: var(--accent-blue-text);
+}
+
+.cell-muted {
+  color: var(--text-secondary);
+}
+
+.cell-empty {
+  color: var(--text-muted);
+}
+
+.row-actions {
+  display: flex;
+  gap: 6px;
+  color: var(--text-muted);
+}
+
+.home-empty {
+  padding: 42px 0;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+}

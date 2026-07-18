@@ -1,0 +1,287 @@
+/* ===== 03 דשבורד תשובות ===== */
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 14px;
+}
+
+.kpi-card {
+  background: var(--card);
+  border-radius: 16px;
+  padding: 18px 20px;
+  border: 1px solid transparent;
+  transition: background 0.2s ease;
+}
+
+[data-theme='dark'] .kpi-card {
+  border-color: var(--border-card);
+}
+
+.kpi-label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.kpi-value {
+  font-family: var(--font-head);
+  font-weight: 800;
+  font-size: 30px;
+  margin-top: 4px;
+  color: var(--heading);
+}
+
+.kpi-value.blue {
+  color: var(--accent-blue-text);
+}
+
+.kpi-value.green {
+  color: var(--success-text);
+}
+
+.kpi-value.small {
+  font-size: 22px;
+  margin-top: 8px;
+}
+
+.kpi-sub {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.kpi-sub.positive {
+  color: var(--success-text);
+  font-weight: 700;
+}
+
+.charts-row {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 1fr;
+  gap: 14px;
+}
+
+.chart-card {
+  background: var(--card);
+  border-radius: 16px;
+  padding: 20px 24px;
+  border: 1px solid transparent;
+  transition: background 0.2s ease;
+}
+
+[data-theme='dark'] .chart-card {
+  border-color: var(--border-card);
+}
+
+.chart-head {
+  display: flex;
+  align-items: center;
+}
+
+.chart-title {
+  font-family: var(--font-head);
+  font-weight: 700;
+  font-size: 15.5px;
+  color: var(--heading);
+}
+
+.chart-head .seg {
+  margin-inline-start: auto;
+}
+
+.chart-foot {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+
+.donut-wrap {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-top: 8px;
+}
+
+.donut-box {
+  position: relative;
+  width: 118px;
+  height: 118px;
+  flex-shrink: 0;
+}
+
+.donut-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-family: var(--font-head);
+  font-size: 15px;
+  color: var(--heading);
+  pointer-events: none;
+}
+
+.donut-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.donut-legend .swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.donut-legend > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* --- submissions table --- */
+.subs-table {
+  background: var(--card);
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid var(--border-card);
+  transition: background 0.2s ease;
+}
+
+.subs-filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--border-card);
+}
+
+.subs-filters .search-pill {
+  width: 260px;
+  padding: 8px 18px;
+}
+
+.filter-select {
+  appearance: none;
+  padding: 7px 16px;
+  border-radius: 999px;
+  border: 1.5px solid var(--border-btn);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--card);
+  cursor: pointer;
+}
+
+.subs-cols {
+  margin-inline-start: auto;
+  font-size: 13px;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.subs-table .thead,
+.subs-table .trow {
+  display: grid;
+  grid-template-columns: 0.7fr 1.4fr 1.6fr 1.1fr 1fr 1fr 1fr;
+  column-gap: 14px;
+  padding: 13px 24px;
+  align-items: center;
+}
+
+.subs-table .thead {
+  padding: 12px 24px;
+  background: var(--thead-bg);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-card);
+}
+
+.subs-table .trow {
+  font-size: 13.5px;
+  border-bottom: 1px solid var(--row-border);
+}
+
+.subs-table .trow:last-child {
+  border-bottom: 0;
+}
+
+.subs-table .trow.is-new {
+  background: var(--selected-soft);
+}
+
+.sub-id {
+  font-weight: 700;
+  color: var(--accent-blue-text);
+}
+
+.sub-name {
+  font-weight: 700;
+  color: var(--heading);
+}
+
+.sub-email {
+  color: var(--text-secondary);
+  text-align: right; /* LTR content aligned to the RTL column edge */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sub-sent {
+  color: var(--text-muted);
+}
+
+.tag-chip.peach {
+  background: var(--peach-bg);
+  color: var(--peach-text);
+}
+
+.tag-chip.purple {
+  background: var(--purple-bg);
+  color: var(--purple-text);
+}
+
+.handle-chip {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 2px 12px;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.handle-chip.new {
+  background: var(--chip-track);
+  color: var(--accent-blue-text);
+}
+
+[data-theme='dark'] .handle-chip.new {
+  background: rgba(61, 110, 247, 0.18);
+  color: #7fa4f9;
+}
+
+.handle-chip.in_progress {
+  background: var(--warn-bg);
+  color: var(--warn-text);
+}
+
+.handle-chip.done {
+  background: var(--success-bg);
+  color: var(--success-text);
+}
+
+.subs-empty {
+  padding: 34px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13.5px;
+}

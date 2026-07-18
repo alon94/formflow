@@ -1,0 +1,158 @@
+/* ===== FormFlow design tokens — שווה עסקים 360 ===== */
+
+:root {
+  /* brand */
+  --navy: #12265a;
+  --royal: #0d4ef2;
+  --royal-hover: #0a3cc0;
+  --sky: #a9cbf1;
+  --lime: #d9f051;
+  --magenta: #ee2bc3;
+
+  /* surfaces */
+  --bg-page: #e9f2fd;
+  --card: #ffffff;
+  --topbar-bg: #ffffff;
+  --input-bg: #ffffff;
+  --input-bg-soft: #fbfdff;
+
+  /* borders */
+  --border-card: #e1ecf9;
+  --border-input: #d5e4f7;
+  --border-btn: #c9dcf5;
+
+  /* text */
+  --text: #12265a;
+  --heading: #12265a;
+  --text-secondary: #4a5a7a;
+  --text-muted: #7a8aa8;
+  --text-faint: #7a8aa8;
+  --text-placeholder: #a3b2cc;
+
+  /* interactive */
+  --primary: #0d4ef2;
+  --primary-hover: #0a3cc0;
+  --primary-contrast: #ffffff;
+  --link: #0d4ef2;
+  --accent-blue-text: #0d4ef2;
+
+  /* fills */
+  --chip-track: #e9f2fd;      /* pill tracks, icon tiles, search fields */
+  --icon-tile: #e9f2fd;
+  --selected-bg: #eff5fe;
+  --selected-soft: #f4f8fe;
+  --thead-bg: #f6faff;
+  --row-border: #eff5fc;
+  --row-zebra: #f9fcff;
+  --row-hover: #f9fcff;
+  --pill-hover: #f6faff;
+
+  /* semantic chips */
+  --success-bg: #effae0;
+  --success-text: #4e6b0a;
+  --success-border: #d9f051;
+  --success-dot: #6fa80d;
+  --warn-bg: #fff6d6;
+  --warn-text: #8a6d00;
+  --peach-bg: #fbe3d4;
+  --peach-text: #b4500f;
+  --purple-bg: #f3e8fd;
+  --purple-text: #7a2bc9;
+  --gray-chip-bg: #f3f5f9;
+  --gray-chip-text: #7a8aa8;
+  --gray-chip-border: #e1e7f0;
+  --error: #e5484d;
+  --error-bg: #fef6f6;
+
+  /* charts */
+  --chart-line: #0d4ef2;
+  --chart-fill: #dce9fb;
+  --chart-bar-1: #dce9fb;
+  --chart-bar-2: #a9cbf1;
+  --chart-bar-3: #6e97e8;
+  --chart-bar-4: #0d4ef2;
+  --chart-bar-5: #12265a;
+  --donut-1: #0d4ef2;
+  --donut-2: #a9cbf1;
+  --donut-3: #ee2bc3;
+
+  /* effects */
+  --shadow-screen: 0 12px 40px rgba(18, 38, 90, 0.1);
+  --shadow-card: 0 4px 14px rgba(18, 38, 90, 0.08);
+  --shadow-public-card: 0 14px 40px rgba(18, 38, 90, 0.1);
+  --shadow-cta-blue: 0 6px 16px rgba(13, 78, 242, 0.3);
+  --shadow-cta-lime: 0 4px 14px rgba(217, 240, 81, 0.5);
+  --shadow-cta-lime-lg: 0 6px 18px rgba(217, 240, 81, 0.55);
+
+  /* fonts */
+  --font-head: 'Rubik', sans-serif;
+  --font-body: 'Assistant', sans-serif;
+
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  --bg-page: #0b1836;
+  --card: #12224a;
+  --topbar-bg: #0e1c40;
+  --input-bg: #0e1c40;
+  --input-bg-soft: #0e1c40;
+
+  --border-card: #23345e;
+  --border-input: #2c3f6e;
+  --border-btn: #2c3f6e;
+
+  --text: #e8f0fc;
+  --heading: #ffffff;
+  --text-secondary: #c9d7f0;
+  --text-muted: #8fa3c8;
+  --text-faint: #5f739e;
+  --text-placeholder: #5f739e;
+
+  --primary: #3d6ef7;
+  --primary-hover: #5c86f8;
+  --primary-contrast: #ffffff;
+  --link: #7fa4f9;
+  --accent-blue-text: #7fa4f9;
+
+  --chip-track: #12224a;
+  --icon-tile: #1b2c55;
+  --selected-bg: rgba(61, 110, 247, 0.14);
+  --selected-soft: rgba(61, 110, 247, 0.08);
+  --thead-bg: #0e1c40;
+  --row-border: #1b2c55;
+  --row-zebra: rgba(255, 255, 255, 0.02);
+  --row-hover: rgba(61, 110, 247, 0.06);
+  --pill-hover: rgba(61, 110, 247, 0.1);
+
+  --success-bg: rgba(217, 240, 81, 0.12);
+  --success-text: #b8e34e;
+  --success-border: rgba(217, 240, 81, 0.4);
+  --success-dot: #d9f051;
+  --warn-bg: rgba(255, 214, 90, 0.14);
+  --warn-text: #f5d66b;
+  --peach-bg: rgba(247, 154, 107, 0.18);
+  --peach-text: #f7b389;
+  --purple-bg: rgba(122, 43, 201, 0.22);
+  --purple-text: #c99df1;
+  --gray-chip-bg: #1b2c55;
+  --gray-chip-text: #8fa3c8;
+  --gray-chip-border: #23345e;
+  --error: #ff7b7b;
+  --error-bg: rgba(255, 123, 123, 0.08);
+
+  --chart-line: #3d6ef7;
+  --chart-fill: rgba(61, 110, 247, 0.18);
+  --chart-bar-1: #1b2c55;
+  --chart-bar-2: #2c4f8f;
+  --chart-bar-3: #3d6ef7;
+  --chart-bar-4: #7fa4f9;
+  --chart-bar-5: #a9cbf1;
+  --donut-1: #3d6ef7;
+
+  --shadow-screen: 0 12px 40px rgba(4, 10, 26, 0.4);
+  --shadow-card: 0 4px 14px rgba(4, 10, 26, 0.3);
+  --shadow-public-card: 0 14px 40px rgba(4, 10, 26, 0.4);
+
+  color-scheme: dark;
+}
