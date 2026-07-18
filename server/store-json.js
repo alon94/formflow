@@ -41,6 +41,16 @@ export class JsonStore {
     return w
   }
 
+  updateWorkspace(id, patch) {
+    const ws = this.db.workspaces.find((w) => w.id === id)
+    if (!ws) return null
+    for (const k of ['name', 'businessName', 'phone', 'domain', 'goal', 'website']) {
+      if (patch[k] !== undefined) ws[k] = patch[k]
+    }
+    this.#flush()
+    return ws
+  }
+
   listForms(workspaceId) {
     return this.db.forms.filter((f) => f.workspaceId === workspaceId)
   }

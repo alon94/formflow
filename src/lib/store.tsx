@@ -74,18 +74,6 @@ const StoreContext = createContext<AppStore | null>(null)
 const THEME_KEY = 'formflow.theme'
 const USER_KEY = 'formflow.user'
 const ONBOARDING_KEY = 'formflow.onboarding-done'
-/* static hosting (no API): edits persist per-browser so the demo survives reloads */
-const offlineDocKey = (formId: string) => `formflow.offline-doc.${formId}`
-
-interface OfflineDoc {
-  fields: FormField[]
-  rules: LogicRule[]
-  branding: BrandingState
-  notif: NotifState
-  webhooks: WebhookConfig[]
-  settings: FormSettings
-  name: string
-}
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => {
@@ -149,22 +137,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [],
   )
 
-  const hydrateOffline = useCallback(
-    (idOrSlug: string) => {
-      setSaveState('offline')
-      try {
-        const raw = localStorage.getItem(offlineDocKey(idOrSlug))
-        if (raw) {
-          const doc = JSON.parse(raw) as OfflineDoc
-          applyDoc({ ...doc, id: idOrSlug, slug: idOrSlug })
-        }
-      } catch {
-        /* corrupted offline doc — keep seeds */
-      }
-    },
-    [applyDoc],
-  )
-
   const loadForm = useCallback(
     (idOrSlug: string, opts?: { publicView?: boolean }) => {
       setServerReady(false)
@@ -172,12 +144,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       fetcher
         .then((form) => {
           applyDoc(form as Parameters<typeof applyDoc>[0])
-          setSaveState('saved')
+          setSaveState(api.isLocalMode() ? 'offline' : 'saved')
           setServerReady(true)
         })
-        .catch(() => hydrateOffline(idOrSlug))
+        .catch(() => setSaveState('offline'))
     },
-    [applyDoc, hydrateOffline],
+    [applyDoc],
   )
 
   /* debounced autosave of edited groups to the server */
@@ -194,29 +166,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       pendingPatch.current = {}
       api
         .patchForm(formIdRef.current, patch)
-        .then(() => setSaveState('saved'))
+        .then(() => setSaveState(api.isLocalMode() ? 'offline' : 'saved'))
         .catch(() => setSaveState('offline'))
     }, 900)
   }, [])
-
-  /* while offline, mirror every edit to localStorage (debounced) */
-  useEffect(() => {
-    if (saveState !== 'offline') return
-    const t = window.setTimeout(() => {
-      const doc: OfflineDoc = {
-        fields,
-        rules,
-        branding,
-        notif,
-        webhooks,
-        settings,
-        name: formName,
-      }
-      localStorage.setItem(offlineDocKey(formIdRef.current), JSON.stringify(doc))
-      localStorage.setItem(offlineDocKey(formSlug), JSON.stringify(doc))
-    }, 600)
-    return () => window.clearTimeout(t)
-  }, [saveState, fields, rules, branding, notif, webhooks, settings, formName, formSlug])
 
   const toggleTheme = useCallback(
     () => setTheme((t) => (t === 'light' ? 'dark' : 'light')),

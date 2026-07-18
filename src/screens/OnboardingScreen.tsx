@@ -10,6 +10,7 @@ import {
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import LogoMark from '../components/LogoMark'
+import { api } from '../lib/api'
 import { useStore } from '../lib/store'
 
 const DOMAINS = ['אירועים', 'משאבי אנוש', 'מכירות ולידים', 'חינוך', 'בריאות', 'נדל״ן', 'עמותות', 'אחר']
@@ -47,31 +48,55 @@ export default function OnboardingScreen() {
   const { user, completeOnboarding } = useStore()
   const navigate = useNavigate()
   const [step, setStep] = useState(1)
-  const [workspace, setWorkspace] = useState('שווה עסקים 360')
+
+  /* customer / business details */
+  const [businessName, setBusinessName] = useState('')
+  const [contactName, setContactName] = useState(user?.name ?? '')
+  const [phone, setPhone] = useState('')
   const [domain, setDomain] = useState('אירועים')
   const [goal, setGoal] = useState('events')
   const [invites, setInvites] = useState<string[]>([])
   const [inviteInput, setInviteInput] = useState('')
+  const [errors, setErrors] = useState<Record<string, string>>({})
   const [done, setDone] = useState(false)
 
   const addInvite = () => {
     const email = inviteInput.trim()
-    if (email.includes('@') && !invites.includes(email)) {
-      setInvites([...invites, email])
-    }
+    if (email.includes('@') && !invites.includes(email)) setInvites([...invites, email])
     setInviteInput('')
   }
 
-  const next = () => {
-    if (step < TOTAL) setStep(step + 1)
-    else {
-      completeOnboarding()
-      setDone(true)
-    }
+  const validateStep1 = (): boolean => {
+    const next: Record<string, string> = {}
+    if (businessName.trim().length < 2) next.businessName = 'נא להזין שם עסק / ארגון'
+    if (contactName.trim().length < 2) next.contactName = 'נא להזין שם איש קשר'
+    if (phone.trim() && !/^0(5\d|[2-9])-?\d{7}$/.test(phone.replaceAll(' ', '')))
+      next.phone = 'מספר טלפון ישראלי לא תקין'
+    setErrors(next)
+    return Object.keys(next).length === 0
   }
 
-  const finish = (to: string) => {
-    navigate(to)
+  const persist = () => {
+    /* save the customer profile onto the workspace (server or local) */
+    api
+      .updateWorkspace({
+        name: `${businessName.trim()} — FormFlow`,
+        businessName: businessName.trim(),
+        phone: phone.trim(),
+        domain,
+        goal,
+      })
+      .catch(() => {})
+    completeOnboarding()
+  }
+
+  const next = () => {
+    if (step === 1 && !validateStep1()) return
+    if (step < TOTAL) setStep(step + 1)
+    else {
+      persist()
+      setDone(true)
+    }
   }
 
   return (
@@ -83,19 +108,19 @@ export default function OnboardingScreen() {
           <span className="success-circle">
             <Check size={32} strokeWidth={3} />
           </span>
-          <h1 className="flow-title">הכל מוכן, {user?.name?.split(' ')[0] ?? 'חברים'}! 🎉</h1>
+          <h1 className="flow-title">הכל מוכן, {contactName.split(' ')[0] || 'חברים'}! 🎉</h1>
           <p className="flow-sub" style={{ margin: 0 }}>
-            ה-Workspace «{workspace}» הוקם — תחום {domain}
+            ה-Workspace של «{businessName}» הוקם — תחום {domain}
             {invites.length > 0 && ` · נשלחו ${invites.length} הזמנות לצוות`}.
             <br />
             מה עכשיו?
           </p>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
-            <button type="button" className="pub-cta" style={{ color: '#12265a' }} onClick={() => finish('/new')}>
+            <button type="button" className="pub-cta" style={{ color: '#12265a' }} onClick={() => navigate('/new')}>
               <Sparkles size={15} style={{ verticalAlign: -2, marginInlineEnd: 6 }} />
               יצירת הטופס הראשון ←
             </button>
-            <button type="button" className="btn btn-secondary" onClick={() => finish('/')}>
+            <button type="button" className="btn btn-secondary" onClick={() => navigate('/')}>
               לריכוז הטפסים
             </button>
           </div>
@@ -117,20 +142,57 @@ export default function OnboardingScreen() {
             <>
               <div>
                 <h1 className="flow-title">ברוכים הבאים ל-FormFlow 👋</h1>
-                <div className="flow-sub">
-                  נתאים את המערכת אליכם בשלושה צעדים קצרים. קודם כל — איך נקרא
-                  ל-Workspace שלכם?
-                </div>
+                <div className="flow-sub">כמה פרטים על העסק שלכם — כדי שנתאים את המערכת והמיתוג.</div>
               </div>
               <div className="pub-field">
-                <label htmlFor="onb-ws">שם ה-Workspace</label>
+                <label htmlFor="onb-biz">שם העסק / הארגון <span className="req-star">*</span></label>
                 <input
-                  id="onb-ws"
-                  className="pub-input"
-                  value={workspace}
-                  onChange={(e) => setWorkspace(e.target.value)}
+                  id="onb-biz"
+                  className={`pub-input${errors.businessName ? ' invalid' : ''}`}
+                  value={businessName}
+                  autoFocus
+                  placeholder="למשל: שווה עסקים 360"
+                  onChange={(e) => setBusinessName(e.target.value)}
                 />
-                <div className="pub-help">יופיע בכותרות, במיילים ובטפסים הציבוריים</div>
+                {errors.businessName && (
+                  <div className="pub-error" role="alert">
+                    {errors.businessName}
+                  </div>
+                )}
+              </div>
+              <div className="pub-row2">
+                <div className="pub-field">
+                  <label htmlFor="onb-contact">שם איש קשר <span className="req-star">*</span></label>
+                  <input
+                    id="onb-contact"
+                    className={`pub-input${errors.contactName ? ' invalid' : ''}`}
+                    value={contactName}
+                    placeholder="ישראל ישראלי"
+                    onChange={(e) => setContactName(e.target.value)}
+                  />
+                  {errors.contactName && (
+                    <div className="pub-error" role="alert">
+                      {errors.contactName}
+                    </div>
+                  )}
+                </div>
+                <div className="pub-field">
+                  <label htmlFor="onb-phone">טלפון</label>
+                  <input
+                    id="onb-phone"
+                    className={`pub-input${errors.phone ? ' invalid' : ''}`}
+                    dir="ltr"
+                    inputMode="numeric"
+                    value={phone}
+                    placeholder="050-0000000"
+                    onChange={(e) => setPhone(e.target.value)}
+                  />
+                  {errors.phone && (
+                    <div className="pub-error" role="alert">
+                      {errors.phone}
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="pub-field">
                 <span className="pub-label" style={{ fontSize: 14 }}>
@@ -232,7 +294,7 @@ export default function OnboardingScreen() {
               type="button"
               className="flow-skip"
               onClick={() => {
-                completeOnboarding()
+                persist()
                 navigate('/')
               }}
             >

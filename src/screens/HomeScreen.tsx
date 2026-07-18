@@ -21,7 +21,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AdminTopbar from '../components/AdminTopbar'
 import { api, type FormListItem } from '../lib/api'
-import { relTime, seedForms } from '../lib/data'
+import { relTime } from '../lib/data'
 import { useStore } from '../lib/store'
 import type { FormStatus } from '../lib/types'
 
@@ -129,31 +129,13 @@ export default function HomeScreen() {
     return () => window.removeEventListener('click', close)
   }, [])
 
-  const { data: forms, isError } = useQuery({
+  const { data: forms } = useQuery({
     queryKey: ['forms'],
     queryFn: api.getForms,
   })
 
-  /* static hosting (no API): show the seeded demo list read-only */
-  const fallbackForms = useMemo<FormListItem[]>(
-    () =>
-      seedForms.map((f) => ({
-        id: f.id,
-        slug: f.slug ?? f.id,
-        name: f.name,
-        folder: f.folder.replace('תיקייה: ', ''),
-        icon: f.icon,
-        status: f.status,
-        version: 1,
-        responses: f.responses ?? 0,
-        completion: f.completion,
-        lastResponseAt:
-          f.id === 'conf-2026' ? new Date(Date.now() - 4 * 60_000).toISOString() : null,
-      })),
-    [],
-  )
-
-  const list = forms ?? (isError ? fallbackForms : [])
+  const list = forms ?? []
+  const localMode = !!forms && api.isLocalMode()
 
   const filtered = useMemo(
     () =>
@@ -201,10 +183,10 @@ export default function HomeScreen() {
           </div>
         )}
 
-        {isError && (
+        {localMode && (
           <div className="offline-note">
-            שרת ה-API אינו זמין — רשימת הטפסים במצב דמו לקריאה. הריצו{' '}
-            <code dir="ltr">npm run server</code>
+            מצב דמו מקומי (ללא שרת) — כל השינויים נשמרים בדפדפן הזה בלבד. להרצה
+            מלאה עם שרת: <code dir="ltr">npm run dev:full</code>
           </div>
         )}
 

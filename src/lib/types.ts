@@ -120,9 +120,9 @@ export interface SubmissionDetail extends Submission {
 export interface AnalyticsPayload {
   total: number
   today: number
-  completion: number
-  avgTime: string
-  nps: number
+  completion: number | null
+  avgTime: string | null
+  nps: number | null
   topSource: { name: string; share: number }
   timeline: Record<'day' | 'week' | 'month', { label: string; value: number }[]>
   trackSplit: { name: string; value: number }[]
@@ -164,6 +164,7 @@ export interface WebhookConfig {
 
 export interface WebhookLog {
   id: string
+  formId?: string
   webhookId: string
   submissionId: number | null
   event: string

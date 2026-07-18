@@ -11,7 +11,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import LogoMark from '../components/LogoMark'
 import Toggle from '../components/Toggle'
 import { api } from '../lib/api'
-import { defaultBranding, defaultNotif, defaultSettings, FORM_ID } from '../lib/data'
+import { defaultBranding, defaultNotif, defaultSettings } from '../lib/data'
 import { useStore } from '../lib/store'
 import type { FormField } from '../lib/types'
 
@@ -98,7 +98,7 @@ const FOLDERS = ['כללי', 'אירועים', 'מכירות', 'משוב', 'HR']
 const TOTAL = 4
 
 export default function NewFormWizard() {
-  const { setFields, setFormName, setNotif, user } = useStore()
+  const { user } = useStore()
   const navigate = useNavigate()
   const location = useLocation()
   const preselect = (location.state as { template?: string } | null)?.template
@@ -164,7 +164,8 @@ export default function NewFormWizard() {
       recipients: user ? [user.email] : defaultNotif.recipients,
     }
     try {
-      /* the wizard provisions the form infrastructure, then building starts */
+      /* provisions real form infrastructure (server or local backend),
+       * then building starts on the newly created form */
       const form = await api.createForm({
         name: finalName,
         folder,
@@ -176,11 +177,7 @@ export default function NewFormWizard() {
       })
       navigate(`/form/${form.id}/build`)
     } catch {
-      /* offline/static demo — build into the local demo form instead */
-      setFormName(finalName)
-      setFields(fields)
-      setNotif({ confirmEnabled: confirmEmail, ownerEnabled: notifyOwner })
-      window.setTimeout(() => navigate(`/form/${FORM_ID}/build`), 350)
+      setCreating(false)
     }
   }
 

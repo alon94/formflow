@@ -143,6 +143,12 @@ api.post('/auth/session', (req, res) => {
   res.json({ workspace: ws, formsCount: store.listForms(ws.id).length })
 })
 
+/* persist the customer's onboarding profile onto their workspace */
+api.patch('/workspaces/current', requireAuth, (req, res) => {
+  const updated = store.updateWorkspace(req.workspace.id, req.body ?? {})
+  res.json(updated ?? req.workspace)
+})
+
 /* ---- forms (workspace-scoped) ---- */
 api.get('/forms', requireAuth, (req, res) => {
   const forms = store.listForms(req.workspace.id).map((form) => {

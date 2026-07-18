@@ -6,7 +6,7 @@
 import Database from 'better-sqlite3'
 import { buildSeedDb } from '../shared/seed.js'
 
-const SCHEMA_VERSION = 3
+const SCHEMA_VERSION = 4
 
 const SCHEMA = `
 CREATE TABLE workspaces (
@@ -15,6 +15,7 @@ CREATE TABLE workspaces (
   owner_email TEXT NOT NULL,
   owner_name TEXT,
   members TEXT NOT NULL DEFAULT '[]',
+  profile TEXT NOT NULL DEFAULT '{}',
   created_at TEXT NOT NULL
 );
 CREATE UNIQUE INDEX idx_ws_owner ON workspaces(owner_email);
@@ -90,6 +91,7 @@ const rowToWorkspace = (r) => ({
   ownerName: r.owner_name,
   members: JSON.parse(r.members),
   createdAt: r.created_at,
+  ...JSON.parse(r.profile || '{}'),
 })
 
 export class SqliteStore {
@@ -121,8 +123,8 @@ export class SqliteStore {
       }
       for (const w of seed.workspaces) {
         this.db
-          .prepare('INSERT INTO workspaces (id, name, owner_email, owner_name, members, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-          .run(w.id, w.name, w.ownerEmail, w.ownerName, JSON.stringify(w.members), w.createdAt)
+          .prepare('INSERT INTO workspaces (id, name, owner_email, owner_name, members, profile, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+          .run(w.id, w.name, w.ownerEmail, w.ownerName, JSON.stringify(w.members), '{}', w.createdAt)
       }
       for (const form of seed.forms) {
         this.db
@@ -164,9 +166,23 @@ export class SqliteStore {
 
   createWorkspace(w) {
     this.db
-      .prepare('INSERT INTO workspaces (id, name, owner_email, owner_name, members, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(w.id, w.name, w.ownerEmail, w.ownerName, JSON.stringify(w.members), w.createdAt)
+      .prepare('INSERT INTO workspaces (id, name, owner_email, owner_name, members, profile, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(w.id, w.name, w.ownerEmail, w.ownerName, JSON.stringify(w.members), '{}', w.createdAt)
     return w
+  }
+
+  updateWorkspace(id, patch) {
+    const row = this.db.prepare('SELECT * FROM workspaces WHERE id = ?').get(id)
+    if (!row) return null
+    const current = rowToWorkspace(row)
+    const profile = {}
+    for (const k of ['businessName', 'phone', 'domain', 'goal', 'website']) {
+      if (current[k] !== undefined) profile[k] = current[k]
+      if (patch[k] !== undefined) profile[k] = patch[k]
+    }
+    const name = patch.name ?? current.name
+    this.db.prepare('UPDATE workspaces SET name = ?, profile = ? WHERE id = ?').run(name, JSON.stringify(profile), id)
+    return { ...current, name, ...profile }
   }
 
   /* ---- forms ---- */

@@ -16,7 +16,7 @@ import {
 } from 'recharts'
 import SubmissionDrawer from '../components/SubmissionDrawer'
 import { api, type SubmissionFilters } from '../lib/api'
-import { FORM_ID, relTime, seedSubmissions } from '../lib/data'
+import { relTime } from '../lib/data'
 import { useStore } from '../lib/store'
 import type { AnalyticsPayload, HandleStatus } from '../lib/types'
 import type { FormShellContext } from './FormShell'
@@ -102,7 +102,7 @@ export default function ResponsesScreen() {
     [search, trackFilter, statusFilter],
   )
 
-  const { data: subsData, isError: subsError } = useQuery({
+  const { data: subsData } = useQuery({
     queryKey: ['submissions', formId, filters],
     queryFn: () => api.getSubmissions(formId, filters),
     placeholderData: keepPreviousData,
@@ -114,33 +114,56 @@ export default function ResponsesScreen() {
   })
 
   const analytics = analyticsData ?? FALLBACK_ANALYTICS
-  const isConference = formId === FORM_ID
-  const submissions = subsData?.items ?? (subsError && isConference ? seedSubmissions : [])
+  const submissions = subsData?.items ?? []
+  const localMode = (!!subsData || !!analyticsData) && api.isLocalMode()
 
-  /* realtime via SSE (spec §4.6.2) */
+  /* realtime: server SSE when online, BroadcastChannel across tabs when local */
   const flashTimer = useRef<number | undefined>(undefined)
   useEffect(() => {
-    const source = new EventSource(api.eventsUrl(formId))
-    const onCreated = (e: MessageEvent) => {
-      try {
-        const { submission } = JSON.parse(e.data) as { submission: { id: number } }
-        setFlashId(submission.id)
-        window.clearTimeout(flashTimer.current)
-        flashTimer.current = window.setTimeout(() => setFlashId(null), 2500)
-      } catch {
-        /* ignore malformed frame */
-      }
+    const invalidate = () => {
       queryClient.invalidateQueries({ queryKey: ['submissions'] })
       queryClient.invalidateQueries({ queryKey: ['analytics'] })
     }
-    const onUpdated = () => {
-      queryClient.invalidateQueries({ queryKey: ['submissions'] })
+    const flash = (id: number) => {
+      setFlashId(id)
+      window.clearTimeout(flashTimer.current)
+      flashTimer.current = window.setTimeout(() => setFlashId(null), 2500)
     }
-    source.addEventListener('submission.created', onCreated)
-    source.addEventListener('submission.updated', onUpdated)
+
+    /* cross-tab live updates for the static/local demo */
+    let channel: BroadcastChannel | undefined
+    try {
+      channel = new BroadcastChannel('formflow-events')
+      channel.onmessage = (ev: MessageEvent) => {
+        if (ev.data?.formId === formId) invalidate()
+      }
+    } catch {
+      /* BroadcastChannel unsupported */
+    }
+
+    /* server SSE — skip when we already know there's no backend */
+    let source: EventSource | undefined
+    if (!api.isLocalMode()) {
+      source = new EventSource(api.eventsUrl(formId))
+      source.addEventListener('submission.created', (e: MessageEvent) => {
+        try {
+          const { submission } = JSON.parse(e.data) as { submission: { id: number } }
+          flash(submission.id)
+        } catch {
+          /* ignore malformed frame */
+        }
+        invalidate()
+      })
+      source.addEventListener('submission.updated', invalidate)
+      source.onerror = () => {
+        if (api.isLocalMode()) source?.close()
+      }
+    }
+
     return () => {
       window.clearTimeout(flashTimer.current)
-      source.close()
+      channel?.close()
+      source?.close()
     }
   }, [queryClient, formId])
 
@@ -154,9 +177,9 @@ export default function ResponsesScreen() {
 
   return (
     <main className="page-body">
-      {subsError && (
+      {localMode && (
         <div className="offline-note">
-          שרת ה-API אינו זמין — מוצגים נתוני דמו. הריצו <code dir="ltr">npm run server</code>
+          מצב דמו מקומי — הנתונים נשמרים בדפדפן זה. שליחות מטאב אחר מתעדכנות כאן חי.
         </div>
       )}
       <div className="kpi-grid">
