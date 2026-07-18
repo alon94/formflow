@@ -8,12 +8,14 @@ import LogicScreen from './screens/LogicScreen'
 import NotificationsScreen from './screens/NotificationsScreen'
 import PublicFormScreen from './screens/PublicFormScreen'
 import ResponsesScreen from './screens/ResponsesScreen'
+import TemplatesScreen from './screens/TemplatesScreen'
 
 export default function App() {
   return (
     <Routes>
       <Route path="/" element={<HomeScreen />} />
       <Route path="/integrations" element={<IntegrationsScreen />} />
+      <Route path="/templates" element={<TemplatesScreen />} />
       <Route path="/form/:formId" element={<FormShell />}>
         <Route index element={<Navigate to="build" replace />} />
         <Route path="build" element={<BuildScreen />} />

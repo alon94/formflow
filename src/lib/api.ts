@@ -2,9 +2,12 @@ import { FORM_ID } from './data'
 import type {
   AnalyticsPayload,
   FormDoc,
+  FormField,
+  FormVersionMeta,
   NotificationEntry,
   Submission,
   SubmissionDetail,
+  WebhookLog,
 } from './types'
 
 const BASE = '/api/v1'
@@ -68,6 +71,12 @@ export const api = {
       { method: 'POST', body: JSON.stringify({ values }) },
     ),
   getAnalytics: () => http<AnalyticsPayload>(`/forms/${FORM_ID}/analytics`),
+  getVersions: () => http<FormVersionMeta[]>(`/forms/${FORM_ID}/versions`),
+  getVersion: (id: string) =>
+    http<{ id: string; at: string; fields: FormField[] }>(`/forms/${FORM_ID}/versions/${id}`),
+  getWebhookLogs: () => http<WebhookLog[]>(`/forms/${FORM_ID}/webhook-logs`),
+  retryWebhookLog: (id: string) =>
+    http<WebhookLog>(`/webhook-logs/${id}/retry`, { method: 'POST' }),
   testNotification: (channel: 'email' | 'sms') =>
     http<NotificationEntry>(`/notifications/test`, {
       method: 'POST',

@@ -154,6 +154,38 @@ export interface NotifState {
   smsReminder: boolean
 }
 
+export interface WebhookConfig {
+  id: string
+  url: string
+  events: string[]
+  active: boolean
+  secret: string
+}
+
+export interface WebhookLog {
+  id: string
+  webhookId: string
+  submissionId: number | null
+  event: string
+  status: number
+  attempt: number
+  payload: string
+  at: string
+}
+
+export interface FormVersionMeta {
+  id: string
+  at: string
+  fieldCount: number
+}
+
+export interface FormSettings {
+  closeAt: string
+  maxResponses: string
+  onePerUser: boolean
+  passwordProtect: boolean
+}
+
 export interface FormDoc {
   id: string
   slug: string
@@ -165,4 +197,6 @@ export interface FormDoc {
   rules: LogicRule[]
   notif: NotifState
   branding: BrandingState
+  webhooks: WebhookConfig[]
+  settings: FormSettings
 }

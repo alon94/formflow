@@ -19,7 +19,9 @@ npm run dev:full   # שרת API (פורט 4000) + Vite (פורט 5173) יחד
 
 ```
 shared/    מנוע הכללים + ולידציה + seed — קוד אחד לצד הלקוח ולשרת
-server/    Express — יישום עיקרי פרק 7 באיפיון + SSE + ייצוא XLSX (אחסון JSON)
+server/    Express — יישום עיקרי פרק 7 + SSE + XLSX + Webhooks + היסטוריית גרסאות
+           אחסון דרך Adapter: SQLite (better-sqlite3, סכמה לפי פרק 6) עם
+           fallback ל-JSON; החלפה ל-PostgreSQL 16 = מימוש Adapter נוסף
 src/       React 19 + TypeScript, dnd-kit, TanStack Query, Recharts, lucide
 ```
 
@@ -44,6 +46,8 @@ src/       React 19 + TypeScript, dnd-kit, TanStack Query, Recharts, lucide
 | GET/PATCH | `/api/v1/submissions/:id` | פרטי תשובה + התראות / עדכון סטטוס·תגיות·הערות |
 | GET | `/api/v1/forms/:id/analytics` | KPI, ציר זמן, התפלגויות |
 | GET | `/api/v1/forms/:id/export?format=xlsx\|csv` | ייצוא לפי הסינון |
+| GET | `/api/v1/forms/:id/versions` · `/versions/:vid` | היסטוריית גרסאות (עד 50) |
+| GET/POST | `/api/v1/forms/:id/webhook-logs` · `/webhook-logs/:id/retry` | לוג קריאות Webhook + שליחה חוזרת |
 | POST | `/api/v1/notifications/test` | שליחת בדיקה |
 | GET | `/api/v1/forms/:id/events` | סטרים SSE |
 
@@ -55,11 +59,16 @@ src/       React 19 + TypeScript, dnd-kit, TanStack Query, Recharts, lucide
 | 02 · בונה טפסים | `/form/conf-2026/build` | גרירה מהספרייה, שינוי סדר, עמודים מרובים, הגדרות שדה, Undo/Redo (50), Autosave לשרת, סימון "לפי כלל", תצוגת דסקטופ/מובייל |
 | 03 · דשבורד תשובות | `/form/conf-2026/responses` | KPI וגרפים מ-analytics, סינון צד-שרת, עדכון חי ב-SSE, חלונית פרטי תשובה (סטטוס/תגיות/הערות/לוג התראות), ייצוא XLSX |
 | 04 · לוגיקה מותנית | `/form/conf-2026/logic` | עורך כללים מלא (תנאים+פעולות), הפעלה/כיבוי, שכפול/מחיקה |
-| 05 · התראות | `/form/conf-2026/settings` | טוגלים, תצוגה מקדימה חיה עם משתני מיזוג, נמענים, מונה SMS, שליחת בדיקה |
+| 05 · הגדרות | `/form/conf-2026/settings` | פאנלים מלאים: התראות (תצוגה חיה, נמענים, SMS), Webhooks (§4.9.2 — ניהול + לוג + Retry), פרסום והפצה (§4.8 — קישור/QR/הטמעה + הגבלות), כללי, גישה והרשאות |
 | 06 · עיצוב ומיתוג | `/form/conf-2026/design` | ערכות נושא, צבעים, פונטים, מצב כהה — עם תצוגה חיה |
 | 07 · טופס ציבורי | `/f/product-conf-2026` | רב-שלבי מונע-נתונים, כללים חיים (שדה סדנה מופיע למסלול עיצוב), ולידציה בזמן אמת + צד-שרת, טיוטה לממלא, רספונסיבי, בהיר/כהה, אישור עם לוג ההתראות |
 | 08 · מצב כהה | כל הממשק | טוקני dark מלאים |
 | נוסף · אינטגרציות | `/integrations` | גלריית האינטגרציות מהאיפיון (§4.9.1) |
+| נוסף · תבניות | `/templates` | ספריית תבניות לפי קטגוריות (§4.7.1) |
+| נוסף · היסטוריית גרסאות | בבונה (אייקון שעון) | עד 50 גרסאות Autosave עם שחזור (§4.1.1) |
+
+בנוסף, כל תשובה חדשה מפעילה Webhooks פעילים (סימולציה עם רישום בלוג), והבונה
+שומר גרסה בכל שינוי שדות.
 
 ## תרחיש דמו מומלץ
 

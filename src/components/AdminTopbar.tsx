@@ -34,9 +34,9 @@ export default function AdminTopbar({ search, onSearch, searchPlaceholder }: Hom
         <NavLink to="/" end className={({ isActive }) => (isActive ? 'active' : '')}>
           הטפסים שלי
         </NavLink>
-        <a href="#" onClick={(e) => e.preventDefault()}>
+        <NavLink to="/templates" className={({ isActive }) => (isActive ? 'active' : '')}>
           תבניות
-        </a>
+        </NavLink>
         <NavLink to="/integrations" className={({ isActive }) => (isActive ? 'active' : '')}>
           אינטגרציות
         </NavLink>

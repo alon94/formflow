@@ -268,6 +268,65 @@ export const seedBranding = {
   darkMode: 'auto',
 }
 
+export const seedSettings = {
+  closeAt: '2026-11-10',
+  maxResponses: '400',
+  onePerUser: true,
+  passwordProtect: false,
+}
+
+export const seedWebhooks = [
+  {
+    id: 'wh-crm',
+    url: 'https://crm.shaveh360.co.il/api/leads/formflow',
+    events: ['submission.created'],
+    active: true,
+    secret: 'whsec_9f2c4e81a7d34b6c',
+  },
+  {
+    id: 'wh-slack',
+    url: 'https://hooks.slack.com/services/T360/B42/reg-updates',
+    events: ['submission.created', 'submission.updated'],
+    active: false,
+    secret: 'whsec_2b8d1f6c3a904e57',
+  },
+]
+
+const seedLogTime = (m) => new Date(Date.now() - m * 60_000).toISOString()
+
+export const seedWebhookLogs = [
+  {
+    id: 'whl-3',
+    webhookId: 'wh-crm',
+    submissionId: 1128,
+    event: 'submission.created',
+    status: 200,
+    attempt: 1,
+    payload: '{"event":"submission.created","submission":{"id":1128,"track":"מוצר וניהול"}}',
+    at: seedLogTime(4),
+  },
+  {
+    id: 'whl-2',
+    webhookId: 'wh-crm',
+    submissionId: 1127,
+    event: 'submission.created',
+    status: 500,
+    attempt: 1,
+    payload: '{"event":"submission.created","submission":{"id":1127,"track":"פיתוח והנדסה"}}',
+    at: seedLogTime(22),
+  },
+  {
+    id: 'whl-1',
+    webhookId: 'wh-crm',
+    submissionId: 1127,
+    event: 'submission.created',
+    status: 200,
+    attempt: 2,
+    payload: '{"event":"submission.created","submission":{"id":1127,"track":"פיתוח והנדסה"}}',
+    at: seedLogTime(21),
+  },
+]
+
 export function buildSeedDb() {
   return {
     form: {
@@ -280,9 +339,13 @@ export function buildSeedDb() {
       rules: seedRules,
       notif: seedNotif,
       branding: seedBranding,
+      webhooks: seedWebhooks,
+      settings: seedSettings,
     },
     submissions: seedSubmissions,
     notifications: seedNotifications,
+    webhookLogs: seedWebhookLogs,
+    versions: [],
     nextSubmissionId: 1129,
     baseline: { total: 124, completion: 82, avgTime: '2:41', nps: 46 },
   }

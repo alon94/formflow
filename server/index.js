@@ -1,37 +1,34 @@
 /**
  * FormFlow API server — implements the core of spec chapter 7 for the demo:
- * forms, submissions (with server-side validation as source of truth),
- * analytics, XLSX/CSV export and an SSE stream for live dashboard updates.
- * Storage is a JSON file (server/db.json) seeded from shared/seed.js.
+ * forms, submissions (server-side validation as source of truth), analytics,
+ * XLSX/CSV export, webhooks simulation with delivery log, version history
+ * and an SSE stream for live dashboard updates.
+ *
+ * Storage goes through an adapter (spec ch.6 schema): better-sqlite3 when
+ * available, JSON file otherwise. Production target is PostgreSQL + JSONB.
  */
 import express from 'express'
 import ExcelJS from 'exceljs'
-import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { buildSeedDb } from '../shared/seed.js'
 import { computeFillState, runSubmitActions, skippedPages } from '../shared/rules.js'
 import { validateSubmission } from '../shared/validate.js'
+import { JsonStore } from './store-json.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const DB_PATH = path.join(__dirname, 'db.json')
 const PORT = process.env.PORT ?? 4000
 
-/* ---------- storage ---------- */
-let db
-try {
-  db = JSON.parse(fs.readFileSync(DB_PATH, 'utf-8'))
-} catch {
-  db = buildSeedDb()
-  fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2))
-}
-
-let saveTimer
-function persist() {
-  clearTimeout(saveTimer)
-  saveTimer = setTimeout(() => {
-    fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2))
-  }, 250)
+let store
+if (process.env.FORMFLOW_DB === 'json') {
+  store = new JsonStore(path.join(__dirname, 'db.json'))
+} else {
+  try {
+    const { SqliteStore } = await import('./store-sqlite.js')
+    store = new SqliteStore(path.join(__dirname, 'formflow.db'))
+  } catch (err) {
+    console.warn('sqlite unavailable, falling back to JSON store:', err.message)
+    store = new JsonStore(path.join(__dirname, 'db.json'))
+  }
 }
 
 /* ---------- SSE ---------- */
@@ -60,26 +57,44 @@ function deriveIdentity(fields, values) {
   return { name, email, track }
 }
 
-function filterSubmissions({ q, track, status }) {
-  return db.submissions
-    .filter((s) => {
-      if (q) {
-        const hay = `${s.name} ${s.email} ${Object.values(s.values ?? {}).join(' ')}`
-        if (!hay.includes(q)) return false
-      }
-      if (track && track !== 'all' && s.track !== track) return false
-      if (status && status !== 'all' && s.status !== status) return false
-      return true
-    })
-    .sort((a, b) => (a.submittedAt < b.submittedAt ? 1 : -1))
+/* simulated webhook delivery (spec §4.9.2) — records to the delivery log */
+function deliverWebhooks(form, event, submission) {
+  const created = []
+  for (const wh of form.webhooks ?? []) {
+    if (!wh.active || !wh.events.includes(event)) continue
+    const entry = {
+      id: `whl-${Date.now()}-${Math.floor(Math.random() * 1e4)}`,
+      webhookId: wh.id,
+      submissionId: submission?.id ?? null,
+      event,
+      status: 200,
+      attempt: 1,
+      payload: JSON.stringify({
+        event,
+        submission: submission
+          ? { id: submission.id, track: submission.track, values: submission.values }
+          : null,
+      }),
+      at: new Date().toISOString(),
+    }
+    store.insertWebhookLog(entry)
+    created.push(entry)
+  }
+  return created
 }
 
-const BASELINE_TRACKS = { 'מוצר וניהול': 57, 'פיתוח והנדסה': 38, 'עיצוב ו-UX': 29 }
+const BASELINE_TRACKS = { 'מוצר וניהול': 55, 'פיתוח והנדסה': 37, 'עיצוב ו-UX': 28 }
 
 const BASE_TIMELINE = [3, 5, 8, 7, 9, 12, 11, 8, 6, 9, 12, 15, 13, 11, 14, 18].map((v, i) => ({
   label: `${String(i + 1).padStart(2, '0')}/07`,
   value: v,
 }))
+
+const filterParams = (req) => ({
+  q: (req.query.q ?? '').toString().trim(),
+  track: (req.query.track ?? 'all').toString(),
+  status: (req.query.status ?? 'all').toString(),
+})
 
 /* ---------- app ---------- */
 const app = express()
@@ -89,77 +104,95 @@ const api = express.Router()
 app.use('/api/v1', api)
 
 api.get('/forms', (_req, res) => {
-  const last = db.submissions[0]
+  const form = store.getForm()
   res.json([
     {
-      id: db.form.id,
-      slug: db.form.slug,
-      name: db.form.name,
-      status: db.form.status,
-      version: db.form.version,
-      responses: db.baseline.total + db.submissions.length,
-      completion: db.baseline.completion,
-      lastResponseAt: last?.submittedAt ?? null,
+      id: form.id,
+      slug: form.slug,
+      name: form.name,
+      status: form.status,
+      version: form.version,
+      responses: store.getBaseline().total + store.submissionCount(),
+      completion: store.getBaseline().completion,
+      lastResponseAt: store.latestSubmissionAt(),
     },
   ])
 })
 
 api.get('/forms/:id', (req, res) => {
-  if (req.params.id !== db.form.id && req.params.id !== db.form.slug) {
+  const form = store.getForm()
+  if (req.params.id !== form.id && req.params.id !== form.slug) {
     return res.status(404).json({ error: 'form not found' })
   }
-  res.json(db.form)
+  res.json(form)
 })
 
 api.patch('/forms/:id', (req, res) => {
+  const form = store.getForm()
   const patch = req.body ?? {}
-  for (const key of ['fields', 'rules', 'notif', 'branding', 'name']) {
-    if (patch[key] !== undefined) db.form[key] = patch[key]
+  let fieldsChanged = false
+  for (const key of ['fields', 'rules', 'notif', 'branding', 'webhooks', 'settings', 'name']) {
+    if (patch[key] !== undefined) {
+      if (key === 'fields' && JSON.stringify(form.fields) !== JSON.stringify(patch.fields)) {
+        fieldsChanged = true
+      }
+      form[key] = patch[key]
+    }
   }
-  persist()
-  res.json(db.form)
+  store.saveForm(form)
+  /* version history — snapshot on every fields change, capped at 50 (spec §4.1.1) */
+  if (fieldsChanged) store.pushVersion(form.id, form.fields)
+  res.json(form)
 })
 
 api.post('/forms/:id/publish', (_req, res) => {
-  db.form.status = 'published'
-  db.form.version += 1
-  db.form.publishedAt = new Date().toISOString()
-  persist()
-  res.json(db.form)
+  const form = store.getForm()
+  form.status = 'published'
+  form.version += 1
+  form.publishedAt = new Date().toISOString()
+  store.saveForm(form)
+  res.json(form)
+})
+
+api.get('/forms/:id/versions', (_req, res) => {
+  res.json(store.listVersions(store.getForm().id))
+})
+
+api.get('/forms/:id/versions/:vid', (req, res) => {
+  const v = store.getVersion(req.params.vid)
+  if (!v) return res.status(404).json({ error: 'version not found' })
+  res.json(v)
 })
 
 api.get('/forms/:id/submissions', (req, res) => {
-  const items = filterSubmissions({
-    q: (req.query.q ?? '').toString().trim(),
-    track: (req.query.track ?? 'all').toString(),
-    status: (req.query.status ?? 'all').toString(),
-  })
+  const items = store.listSubmissions(filterParams(req))
   res.json({ items, total: items.length })
 })
 
 api.get('/submissions/:id', (req, res) => {
-  const sub = db.submissions.find((s) => s.id === Number(req.params.id))
+  const sub = store.getSubmission(Number(req.params.id))
   if (!sub) return res.status(404).json({ error: 'not found' })
-  const notifications = db.notifications.filter((n) => n.submissionId === sub.id)
-  res.json({ ...sub, notifications })
+  res.json({ ...sub, notifications: store.notificationsFor(sub.id) })
 })
 
 api.patch('/submissions/:id', (req, res) => {
-  const sub = db.submissions.find((s) => s.id === Number(req.params.id))
-  if (!sub) return res.status(404).json({ error: 'not found' })
   const { status, notes, tags } = req.body ?? {}
-  if (status !== undefined) sub.status = status
-  if (notes !== undefined) sub.notes = notes
-  if (tags !== undefined) sub.tags = tags
-  persist()
+  const patch = {}
+  if (status !== undefined) patch.status = status
+  if (notes !== undefined) patch.notes = notes
+  if (tags !== undefined) patch.tags = tags
+  const sub = store.updateSubmission(Number(req.params.id), patch)
+  if (!sub) return res.status(404).json({ error: 'not found' })
   broadcast('submission.updated', { submission: sub })
+  deliverWebhooks(store.getForm(), 'submission.updated', sub)
   res.json(sub)
 })
 
 /* public submit — server-side validation is the source of truth (spec §4.2, §8.2) */
 api.post('/forms/:id/submissions', (req, res) => {
   const values = req.body?.values ?? {}
-  const { fields, rules } = db.form
+  const form = store.getForm()
+  const { fields, rules } = form
 
   const { hiddenFieldKeys } = computeFillState(fields, rules, values)
   const skipped = skippedPages(fields, rules, values)
@@ -169,7 +202,7 @@ api.post('/forms/:id/submissions', (req, res) => {
   for (const field of fields) {
     if (!field.unique || errors[field.fieldKey]) continue
     const v = String(values[field.fieldKey] ?? '').trim()
-    if (v && db.submissions.some((s) => String(s.values?.[field.fieldKey] ?? '') === v)) {
+    if (v && store.hasValue(field.fieldKey, v)) {
       errors[field.fieldKey] = 'הערך כבר נשלח בעבר בטופס זה'
     }
   }
@@ -181,7 +214,7 @@ api.post('/forms/:id/submissions', (req, res) => {
   const { routes, tags, assigns } = runSubmitActions(rules, values)
   const identity = deriveIdentity(fields, values)
   const submission = {
-    id: db.nextSubmissionId++,
+    id: store.nextSubmissionId(),
     values,
     ...identity,
     tags,
@@ -190,7 +223,7 @@ api.post('/forms/:id/submissions', (req, res) => {
     notes: '',
     submittedAt: new Date().toISOString(),
   }
-  db.submissions.unshift(submission)
+  store.insertSubmission(submission)
 
   /* notification pipeline (simulated transactional sends, spec §4.4) */
   const created = []
@@ -204,32 +237,30 @@ api.post('/forms/:id/submissions', (req, res) => {
       note,
       at: new Date().toISOString(),
     }
-    db.notifications.unshift(entry)
+    store.insertNotification(entry)
     created.push(entry)
   }
-  const notif = db.form.notif
+  const notif = form.notif
   if (notif.confirmEnabled && identity.email) {
     notify('email', identity.email, 'מייל אישור לממלא')
   }
   if (notif.ownerEnabled) {
     const recipients = [...new Set([...notif.recipients, ...routes])]
     for (const r of recipients) {
-      notify(
-        'email',
-        r,
-        routes.includes(r) ? 'ניתוב לפי כלל לוגיקה' : 'מייל התראה לבעל הטופס',
-      )
+      notify('email', r, routes.includes(r) ? 'ניתוב לפי כלל לוגיקה' : 'מייל התראה לבעל הטופס')
     }
   }
 
-  persist()
+  deliverWebhooks(form, 'submission.created', submission)
   broadcast('submission.created', { submission })
   res.status(201).json({ submission, notifications: created })
 })
 
 api.get('/forms/:id/analytics', (_req, res) => {
-  const liveCount = db.submissions.length - 4 /* beyond seeds */
-  const total = db.baseline.total + db.submissions.length
+  const baseline = store.getBaseline()
+  const count = store.submissionCount()
+  const liveCount = count - 4 /* beyond seeds */
+  const total = baseline.total + count
   const today = 14 + Math.max(0, liveCount)
 
   const timeline = BASE_TIMELINE.map((p, i, arr) =>
@@ -237,8 +268,8 @@ api.get('/forms/:id/analytics', (_req, res) => {
   )
 
   const trackCounts = { ...BASELINE_TRACKS }
-  for (const s of db.submissions) {
-    if (s.track in trackCounts) trackCounts[s.track] += 1
+  for (const [track, c] of Object.entries(store.trackCounts())) {
+    if (track in trackCounts) trackCounts[track] += c
   }
   const trackTotal = Object.values(trackCounts).reduce((a, b) => a + b, 0)
   const names = { 'מוצר וניהול': 'מוצר וניהול', 'פיתוח והנדסה': 'פיתוח', 'עיצוב ו-UX': 'עיצוב' }
@@ -256,9 +287,9 @@ api.get('/forms/:id/analytics', (_req, res) => {
   res.json({
     total,
     today,
-    completion: db.baseline.completion,
-    avgTime: db.baseline.avgTime,
-    nps: db.baseline.nps,
+    completion: baseline.completion,
+    avgTime: baseline.avgTime,
+    nps: baseline.nps,
     topSource: { name: 'וואטסאפ', share: 44 },
     timeline: {
       day: timeline,
@@ -287,13 +318,9 @@ api.get('/forms/:id/analytics', (_req, res) => {
 })
 
 api.get('/forms/:id/export', async (req, res) => {
-  const items = filterSubmissions({
-    q: (req.query.q ?? '').toString().trim(),
-    track: (req.query.track ?? 'all').toString(),
-    status: (req.query.status ?? 'all').toString(),
-  })
+  const items = store.listSubmissions(filterParams(req))
   const statusLabel = { new: 'חדש', in_progress: 'בטיפול', done: 'טופל' }
-  const fields = db.form.fields
+  const fields = store.getForm().fields
 
   if (req.query.format === 'csv') {
     const header = ['#', 'שם מלא', 'מייל', 'מסלול', ...fields.map((f) => f.label), 'תגיות', 'סטטוס', 'נשלח']
@@ -353,27 +380,43 @@ api.get('/forms/:id/export', async (req, res) => {
   res.end()
 })
 
+api.get('/forms/:id/webhook-logs', (_req, res) => {
+  res.json(store.listWebhookLogs())
+})
+
+api.post('/webhook-logs/:id/retry', (req, res) => {
+  const original = store.getWebhookLog(req.params.id)
+  if (!original) return res.status(404).json({ error: 'not found' })
+  const entry = {
+    ...original,
+    id: `whl-${Date.now()}-${Math.floor(Math.random() * 1e4)}`,
+    status: 200,
+    attempt: original.attempt + 1,
+    at: new Date().toISOString(),
+  }
+  store.insertWebhookLog(entry)
+  res.status(201).json(entry)
+})
+
 api.post('/notifications/test', (req, res) => {
   const channel = req.body?.channel === 'sms' ? 'sms' : 'email'
   const entry = {
     id: `ntf-test-${Date.now()}`,
     submissionId: null,
     channel,
-    recipient: channel === 'email' ? db.form.notif.fromAddress : '050-•••0000',
+    recipient: channel === 'email' ? store.getForm().notif.fromAddress : '050-•••0000',
     status: 'delivered',
     note: 'שליחת בדיקה',
     at: new Date().toISOString(),
   }
-  db.notifications.unshift(entry)
-  persist()
+  store.insertNotification(entry)
   res.status(201).json(entry)
 })
 
 /* dev helper — reset the store to seed state (used by the E2E suite) */
 api.post('/__reset', (_req, res) => {
-  db = buildSeedDb()
-  persist()
-  res.json({ ok: true })
+  store.reset()
+  res.json({ ok: true, store: store.kind })
 })
 
 api.get('/forms/:id/events', (req, res) => {
@@ -391,5 +434,5 @@ api.get('/forms/:id/events', (req, res) => {
 })
 
 app.listen(PORT, () => {
-  console.log(`FormFlow API listening on http://localhost:${PORT}`)
+  console.log(`FormFlow API listening on http://localhost:${PORT} (store: ${store.kind})`)
 })

@@ -6,16 +6,20 @@ import {
   seedFields as sharedSeedFields,
   seedNotif,
   seedRules as sharedSeedRules,
+  seedSettings,
   seedSubmissions as sharedSeedSubmissions,
+  seedWebhooks,
 } from '../../shared/seed.js'
 import type {
   BrandingState,
   FieldTypeDef,
   FormField,
   FormMeta,
+  FormSettings,
   LogicRule,
   NotifState,
   Submission,
+  WebhookConfig,
 } from './types'
 
 export const FORM_ID: string = SEED_FORM_ID
@@ -27,6 +31,8 @@ export const seedRules = sharedSeedRules as LogicRule[]
 export const seedSubmissions = sharedSeedSubmissions as Submission[]
 export const defaultNotif = seedNotif as NotifState
 export const defaultBranding = seedBranding as BrandingState
+export const defaultWebhooks = seedWebhooks as WebhookConfig[]
+export const defaultSettings = seedSettings as FormSettings
 
 export const seedForms: FormMeta[] = [
   {

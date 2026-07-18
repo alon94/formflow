@@ -1,12 +1,12 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Check, Copy, Download, Mail, Play, X } from 'lucide-react'
-import QRCode from 'qrcode'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Check, Download, Mail, Play, X } from 'lucide-react'
+import { useCallback, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import LogoMark from '../components/LogoMark'
+import ShareBlock from '../components/ShareBlock'
 import { ThemeButton } from '../components/AdminTopbar'
 import { api } from '../lib/api'
-import { FORM_NAME, FORM_SLUG } from '../lib/data'
+import { FORM_SLUG } from '../lib/data'
 import { useStore } from '../lib/store'
 
 export interface FormShellContext {
@@ -22,28 +22,6 @@ function TabLink({ to, children }: { to: string; children: React.ReactNode }) {
 }
 
 function PublishModal({ onClose }: { onClose: () => void }) {
-  const publicUrl = `${window.location.origin}/f/${FORM_SLUG}`
-  const [qr, setQr] = useState<string | null>(null)
-  const [copied, setCopied] = useState<'link' | 'embed' | null>(null)
-
-  useEffect(() => {
-    QRCode.toDataURL(publicUrl, {
-      margin: 1,
-      width: 148,
-      color: { dark: '#12265a', light: '#ffffff' },
-    })
-      .then(setQr)
-      .catch(() => setQr(null))
-  }, [publicUrl])
-
-  const embed = `<iframe src="${publicUrl}" width="100%" height="720" style="border:0;border-radius:16px" title="${FORM_NAME}"></iframe>`
-
-  const copy = (text: string, which: 'link' | 'embed') => {
-    navigator.clipboard?.writeText(text).catch(() => {})
-    setCopied(which)
-    window.setTimeout(() => setCopied(null), 1800)
-  }
-
   return (
     <div className="modal-overlay" onClick={onClose} role="presentation">
       <div
@@ -60,41 +38,14 @@ function PublishModal({ onClose }: { onClose: () => void }) {
         </span>
         <h2>הטופס פורסם!</h2>
         <p className="modal-sub">שתפו את הקישור, סרקו את ה-QR או הטמיעו באתר</p>
-        <div className="share-row">
-          <span className="share-link mono" dir="ltr">
-            {publicUrl}
-          </span>
-          <button type="button" className="btn btn-primary" onClick={() => copy(publicUrl, 'link')}>
-            <Copy size={13} aria-hidden="true" /> {copied === 'link' ? 'הועתק ✓' : 'העתקה'}
-          </button>
-          <Link className="btn btn-secondary" to={`/f/${FORM_SLUG}`} target="_blank">
-            פתיחה
-          </Link>
-        </div>
-        {qr && (
-          <div className="qr-box">
-            <img src={qr} alt={`קוד QR לטופס ${FORM_NAME}`} width={148} height={148} />
-            <span>סריקה למילוי מהנייד</span>
-          </div>
-        )}
-        <div className="embed-box">
-          <div className="embed-head">
-            <span className="field-label">קוד הטמעה (iframe)</span>
-            <button type="button" className="mini-copy" onClick={() => copy(embed, 'embed')}>
-              {copied === 'embed' ? 'הועתק ✓' : 'העתקת הקוד'}
-            </button>
-          </div>
-          <code className="embed-code" dir="ltr">
-            {embed}
-          </code>
-        </div>
+        <ShareBlock />
       </div>
     </div>
   )
 }
 
 export default function FormShell() {
-  const { saveState, formStatus, publish } = useStore()
+  const { saveState, formStatus, publish, formName } = useStore()
   const location = useLocation()
   const [showPublish, setShowPublish] = useState(false)
   const exportRef = useRef<(() => void) | null>(null)
@@ -193,7 +144,7 @@ export default function FormShell() {
         </Link>
         <div className="breadcrumb">
           <Link to="/">הטפסים שלי ‹</Link>
-          <span className="crumb-name">{FORM_NAME}</span>
+          <span className="crumb-name">{formName}</span>
           <span className={`status-chip ${published ? 'published' : 'draft'}`}>
             {published ? 'פורסם' : 'טיוטה'}
           </span>

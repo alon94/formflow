@@ -5,6 +5,8 @@ import type {
   NotifState,
   NotificationEntry,
   Submission,
+  WebhookConfig,
+  WebhookLog,
 } from '../src/lib/types'
 
 export declare const FORM_ID: string
@@ -16,6 +18,9 @@ export declare const seedSubmissions: Submission[]
 export declare const seedNotif: NotifState
 export declare const seedNotifications: NotificationEntry[]
 export declare const seedBranding: BrandingState
+export declare const seedWebhooks: WebhookConfig[]
+export declare const seedWebhookLogs: WebhookLog[]
+export declare const seedSettings: import('../src/lib/types').FormSettings
 
 export declare function buildSeedDb(): {
   form: {

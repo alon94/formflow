@@ -9,13 +9,23 @@ import {
   type ReactNode,
 } from 'react'
 import { api } from './api'
-import { defaultBranding, defaultNotif, FORM_NAME, seedFields, seedRules } from './data'
+import {
+  defaultBranding,
+  defaultNotif,
+  defaultSettings,
+  defaultWebhooks,
+  FORM_NAME,
+  seedFields,
+  seedRules,
+} from './data'
 import type {
   BrandingState,
   FormField,
+  FormSettings,
   FormStatus,
   LogicRule,
   NotifState,
+  WebhookConfig,
 } from './types'
 
 export type Theme = 'light' | 'dark'
@@ -27,6 +37,7 @@ interface AppStore {
   serverReady: boolean
   saveState: SaveState
   formName: string
+  setFormName: (name: string) => void
   formStatus: FormStatus
   fields: FormField[]
   setFields: (next: FormField[]) => void
@@ -36,6 +47,10 @@ interface AppStore {
   setBranding: (next: Partial<BrandingState>) => void
   notif: NotifState
   setNotif: (next: Partial<NotifState>) => void
+  webhooks: WebhookConfig[]
+  setWebhooks: (next: WebhookConfig[]) => void
+  settings: FormSettings
+  setSettings: (next: Partial<FormSettings>) => void
   publish: () => Promise<void>
 }
 
@@ -56,6 +71,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [rules, setRulesState] = useState<LogicRule[]>(seedRules)
   const [branding, setBrandingState] = useState<BrandingState>(defaultBranding)
   const [notif, setNotifState] = useState<NotifState>(defaultNotif)
+  const [webhooks, setWebhooksState] = useState<WebhookConfig[]>(defaultWebhooks)
+  const [settings, setSettingsState] = useState<FormSettings>(defaultSettings)
+  const [formName, setFormNameState] = useState(FORM_NAME)
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -73,6 +91,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setRulesState(form.rules)
         setBrandingState(form.branding)
         setNotifState(form.notif)
+        setWebhooksState(form.webhooks ?? defaultWebhooks)
+        setSettingsState(form.settings ?? defaultSettings)
+        setFormNameState(form.name)
         setFormStatus(form.status)
         setServerReady(true)
       })
@@ -144,6 +165,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [queuePatch],
   )
 
+  const setWebhooks = useCallback(
+    (next: WebhookConfig[]) => {
+      setWebhooksState(next)
+      queuePatch('webhooks', next)
+    },
+    [queuePatch],
+  )
+
+  const setSettings = useCallback(
+    (patch: Partial<FormSettings>) => {
+      setSettingsState((prev) => {
+        const next = { ...prev, ...patch }
+        queuePatch('settings', next)
+        return next
+      })
+    },
+    [queuePatch],
+  )
+
+  const setFormName = useCallback(
+    (name: string) => {
+      setFormNameState(name)
+      queuePatch('name', name)
+    },
+    [queuePatch],
+  )
+
   const publish = useCallback(async () => {
     try {
       const form = await api.publishForm()
@@ -159,7 +207,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       toggleTheme,
       serverReady,
       saveState,
-      formName: FORM_NAME,
+      formName,
+      setFormName,
       formStatus,
       fields,
       setFields,
@@ -169,6 +218,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setBranding,
       notif,
       setNotif,
+      webhooks,
+      setWebhooks,
+      settings,
+      setSettings,
       publish,
     }),
     [
@@ -176,6 +229,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       toggleTheme,
       serverReady,
       saveState,
+      formName,
+      setFormName,
       formStatus,
       fields,
       setFields,
@@ -185,6 +240,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setBranding,
       notif,
       setNotif,
+      webhooks,
+      setWebhooks,
+      settings,
+      setSettings,
       publish,
     ],
   )
