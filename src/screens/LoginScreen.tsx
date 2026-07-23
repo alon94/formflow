@@ -1,9 +1,10 @@
 import { ShieldCheck } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import LogoMark from '../components/LogoMark'
 import { api } from '../lib/api'
 import { useStore } from '../lib/store'
+import { supabase } from '../lib/supabase'
 
 type Mode = 'login' | 'signup'
 
@@ -42,7 +43,7 @@ export default function LoginScreen() {
   const [mfa, setMfa] = useState(false)
   const [code, setCode] = useState(['', '', '', '', '', ''])
   const codeRefs = useRef<(HTMLInputElement | null)[]>([])
-  const [pendingUser, setPendingUser] = useState<{ name: string; email: string } | null>(null)
+  const [pendingUser] = useState<{ name: string; email: string } | null>(null)
 
   const validate = (): boolean => {
     const next: Record<string, string> = {}
@@ -65,25 +66,62 @@ export default function LoginScreen() {
     }
   }
 
-  const submit = () => {
+  const submit = async () => {
     if (!validate()) return
     const guessedName =
       mode === 'signup' ? name.trim() : email.split('@')[0].replace(/[._-]/g, ' ')
-    /* demo: signup goes straight in, login passes through MFA (spec §5.3) */
+    /* real authentication via Supabase (email + password) */
     if (mode === 'signup') {
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: { data: { full_name: guessedName } },
+      })
+      if (error) return setErrors({ email: error.message })
+      if (!data.session) {
+        return setErrors({ email: 'נשלח מייל אימות — אשרו אותו והתחברו שוב' })
+      }
       finishLogin({ name: guessedName, email: email.trim() })
     } else {
-      setPendingUser({ name: guessedName, email: email.trim() })
-      setMfa(true)
+      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
+      if (error) {
+        return setErrors({ password: 'מייל או סיסמה שגויים' })
+      }
+      finishLogin({ name: guessedName, email: email.trim() })
     }
   }
 
-  const sso = (provider: 'Google' | 'Microsoft') => {
-    finishLogin({
-      name: 'ישראל שווה',
-      email: provider === 'Google' ? 'israel@gmail.com' : 'israel@outlook.com',
+  const sso = async (provider: 'Google' | 'Microsoft') => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: provider === 'Google' ? 'google' : 'azure',
+      options: { redirectTo: `${window.location.origin}/login` },
     })
+    if (error) setErrors({ email: 'התחברות ' + provider + ' אינה מוגדרת עדיין — נסו מייל' })
   }
+
+  /* OAuth redirect return + restored sessions: finish login automatically */
+  useEffect(() => {
+    let done = false
+    const complete = (sEmail: string, sName: string) => {
+      if (done) return
+      done = true
+      finishLogin({ name: sName, email: sEmail })
+    }
+    supabase.auth.getSession().then(({ data }) => {
+      const u = data.session?.user
+      if (u?.email) {
+        complete(u.email, (u.user_metadata?.full_name as string) ?? u.email.split('@')[0])
+      }
+    })
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      const u = session?.user
+      if (u?.email) {
+        complete(u.email, (u.user_metadata?.full_name as string) ?? u.email.split('@')[0])
+      }
+    })
+    return () => sub.subscription.unsubscribe()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const setDigit = (i: number, v: string) => {
     const digit = v.replace(/\D/g, '').slice(-1)
