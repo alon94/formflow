@@ -268,21 +268,171 @@ export const seedBranding = {
   darkMode: 'auto',
 }
 
+export const seedSettings = {
+  closeAt: '2026-11-10',
+  maxResponses: '400',
+  onePerUser: true,
+  passwordProtect: false,
+}
+
+export const seedWebhooks = [
+  {
+    id: 'wh-crm',
+    url: 'https://crm.shaveh360.co.il/api/leads/formflow',
+    events: ['submission.created'],
+    active: true,
+    secret: 'whsec_9f2c4e81a7d34b6c',
+  },
+  {
+    id: 'wh-slack',
+    url: 'https://hooks.slack.com/services/T360/B42/reg-updates',
+    events: ['submission.created', 'submission.updated'],
+    active: false,
+    secret: 'whsec_2b8d1f6c3a904e57',
+  },
+]
+
+const seedLogTime = (m) => new Date(Date.now() - m * 60_000).toISOString()
+
+export const seedWebhookLogs = [
+  {
+    id: 'whl-3',
+    webhookId: 'wh-crm',
+    submissionId: 1128,
+    event: 'submission.created',
+    status: 200,
+    attempt: 1,
+    payload: '{"event":"submission.created","submission":{"id":1128,"track":"מוצר וניהול"}}',
+    at: seedLogTime(4),
+  },
+  {
+    id: 'whl-2',
+    webhookId: 'wh-crm',
+    submissionId: 1127,
+    event: 'submission.created',
+    status: 500,
+    attempt: 1,
+    payload: '{"event":"submission.created","submission":{"id":1127,"track":"פיתוח והנדסה"}}',
+    at: seedLogTime(22),
+  },
+  {
+    id: 'whl-1',
+    webhookId: 'wh-crm',
+    submissionId: 1127,
+    event: 'submission.created',
+    status: 200,
+    attempt: 2,
+    payload: '{"event":"submission.created","submission":{"id":1127,"track":"פיתוח והנדסה"}}',
+    at: seedLogTime(21),
+  },
+]
+
+export const DEMO_WORKSPACE_ID = 'ws-shaveh360'
+/* emails whose login lands in the seeded demo workspace */
+export const DEMO_EMAILS = ['israel@gmail.com', 'israel@outlook.com', 'demo@shaveh360.co.il']
+
+export function defaultNotifFor(name) {
+  return {
+    ...seedNotif,
+    subject: `קיבלנו את הפנייה שלך — ${name}`,
+    smsTemplate: `היי {{first_name}}, קיבלנו את הפנייה שלך ב-${name}. נחזור אליך בקרוב: {{short_url}}`,
+  }
+}
+
+export const defaultSettingsFor = () => ({
+  closeAt: '',
+  maxResponses: '',
+  onePerUser: true,
+  passwordProtect: false,
+})
+
+function simpleForm(id, slug, name, folder, icon, status, fields) {
+  return {
+    id,
+    slug,
+    name,
+    folder,
+    icon,
+    status,
+    version: 1,
+    fields,
+    rules: [],
+    notif: defaultNotifFor(name),
+    branding: { ...seedBranding },
+    webhooks: [],
+    settings: defaultSettingsFor(),
+  }
+}
+
+const f = (key, label, type, extra = {}) => ({
+  id: `fld-${key}`,
+  type,
+  label,
+  required: false,
+  fieldKey: key,
+  page: 1,
+  ...extra,
+})
+
+export function buildSeedForms() {
+  const conference = {
+    id: FORM_ID,
+    slug: FORM_SLUG,
+    name: FORM_NAME,
+    folder: 'אירועים',
+    icon: 'ticket',
+    status: 'published',
+    version: 2,
+    fields: seedFields,
+    rules: seedRules,
+    notif: seedNotif,
+    branding: seedBranding,
+    webhooks: seedWebhooks,
+    settings: seedSettings,
+  }
+  return [
+    conference,
+    simpleForm('hr-onboarding', 'hr-onboarding', 'קליטת עובד חדש — משאבי אנוש', 'HR', 'hand', 'published', [
+      f('first_name', 'שם פרטי', 'short_text', { required: true, half: true }),
+      f('last_name', 'שם משפחה', 'short_text', { required: true, half: true }),
+      f('id_number', 'תעודת זהות', 'id_number', { required: true, placeholder: '9 ספרות' }),
+      f('email', 'כתובת מייל', 'email', { required: true, placeholder: 'name@company.co.il' }),
+      f('start_date', 'תאריך תחילת עבודה', 'date', { required: true }),
+    ]),
+    simpleForm('contact', 'contact-us', 'צור קשר — אתר החברה', 'מכירות', 'phone', 'published', [
+      f('first_name', 'שם מלא', 'short_text', { required: true }),
+      f('email', 'כתובת מייל', 'email', { required: true }),
+      f('phone', 'טלפון', 'phone'),
+      f('notes', 'איך נוכל לעזור?', 'long_text', { required: true }),
+    ]),
+    simpleForm('nps-q3', 'nps-q3', 'משוב לקוחות Q3', 'משוב', 'file', 'draft', [
+      f('rating', 'עד כמה תמליצו עלינו?', 'rating', { required: true }),
+      f('notes', 'ספרו לנו למה', 'long_text'),
+    ]),
+    simpleForm('webinar-june', 'webinar-june', 'הרשמה לוובינר — יוני', 'אירועים', 'graduation', 'closed', [
+      f('first_name', 'שם מלא', 'short_text', { required: true }),
+      f('email', 'כתובת מייל', 'email', { required: true }),
+    ]),
+  ]
+}
+
 export function buildSeedDb() {
   return {
-    form: {
-      id: FORM_ID,
-      slug: FORM_SLUG,
-      name: FORM_NAME,
-      status: 'draft',
-      version: 1,
-      fields: seedFields,
-      rules: seedRules,
-      notif: seedNotif,
-      branding: seedBranding,
-    },
-    submissions: seedSubmissions,
+    workspaces: [
+      {
+        id: DEMO_WORKSPACE_ID,
+        name: 'שווה עסקים 360',
+        ownerEmail: DEMO_EMAILS[0],
+        ownerName: 'ישראל שווה',
+        members: DEMO_EMAILS,
+        createdAt: new Date().toISOString(),
+      },
+    ],
+    forms: buildSeedForms().map((form) => ({ ...form, workspaceId: DEMO_WORKSPACE_ID })),
+    submissions: seedSubmissions.map((s) => ({ ...s, formId: FORM_ID })),
     notifications: seedNotifications,
+    webhookLogs: seedWebhookLogs,
+    versions: [],
     nextSubmissionId: 1129,
     baseline: { total: 124, completion: 82, avgTime: '2:41', nps: 46 },
   }

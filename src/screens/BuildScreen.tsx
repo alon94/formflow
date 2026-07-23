@@ -19,6 +19,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { useQuery } from '@tanstack/react-query'
 import {
   AtSign,
   Calendar,
@@ -28,6 +29,7 @@ import {
   CreditCard,
   GripVertical,
   Hash,
+  History,
   IdCard,
   Monitor,
   Phone,
@@ -44,9 +46,85 @@ import {
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Toggle from '../components/Toggle'
 import { LogoArrow } from '../components/LogoMark'
-import { fieldLibrary, fieldTypeMeta } from '../lib/data'
+import { api } from '../lib/api'
+import { fieldLibrary, fieldTypeMeta, relTime } from '../lib/data'
 import { useStore } from '../lib/store'
 import type { FieldType, FormField } from '../lib/types'
+
+/* version history modal (spec §4.1.1 — עד 50 גרסאות עם שחזור) */
+function VersionsModal({
+  formId,
+  onRestore,
+  onClose,
+}: {
+  formId: string
+  onRestore: (fields: FormField[]) => void
+  onClose: () => void
+}) {
+  const { data: versions } = useQuery({
+    queryKey: ['versions', formId],
+    queryFn: () => api.getVersions(formId),
+    refetchOnMount: 'always',
+  })
+  const [busy, setBusy] = useState<string | null>(null)
+
+  const restore = async (id: string) => {
+    setBusy(id)
+    try {
+      const v = await api.getVersion(formId, id)
+      onRestore(v.fields)
+      onClose()
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose} role="presentation">
+      <div
+        className="modal-card fade-up"
+        role="dialog"
+        aria-label="היסטוריית גרסאות"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button type="button" className="icon-btn modal-close" onClick={onClose} aria-label="סגירה">
+          <X size={16} />
+        </button>
+        <h2>היסטוריית גרסאות</h2>
+        <p className="modal-sub">כל שמירה אוטומטית נשמרת כגרסה — עד 50 גרסאות אחורה</p>
+        <div className="ver-list">
+          {(versions ?? []).map((v, i) => (
+            <div key={v.id} className="ver-row">
+              <History size={15} style={{ color: 'var(--text-muted)' }} />
+              <div>
+                <div className="when">
+                  {relTime(v.at)}
+                  {i === 0 && ' · נוכחית'}
+                </div>
+                <div className="count">{v.fieldCount} שדות</div>
+              </div>
+              {i > 0 && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={busy === v.id}
+                  onClick={() => restore(v.id)}
+                >
+                  {busy === v.id ? 'משחזר…' : 'שחזור'}
+                </button>
+              )}
+            </div>
+          ))}
+          {(versions ?? []).length === 0 && (
+            <span style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center' }}>
+              עדיין אין גרסאות — כל שינוי בשדות ייצור אחת
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function TypeIcon({ icon, size = 14 }: { icon: string; size?: number }) {
   switch (icon) {
@@ -266,7 +344,8 @@ const VALIDATION_LABELS: Record<string, string[]> = {
 }
 
 export default function BuildScreen() {
-  const { fields, setFields, rules } = useStore()
+  const { fields, setFields, rules, formName, formId } = useStore()
+  const isConference = formName.includes('כנס')
   const [selectedId, setSelectedId] = useState<string | null>('fld-email')
   const [libSearch, setLibSearch] = useState('')
   const [libCat, setLibCat] = useState<'all' | 'text' | 'choice' | 'advanced'>('all')
@@ -277,6 +356,7 @@ export default function BuildScreen() {
     | { kind: 'field'; field: FormField }
     | null
   >(null)
+  const [showVersions, setShowVersions] = useState(false)
 
   const [past, setPast] = useState<FormField[][]>([])
   const [future, setFuture] = useState<FormField[][]>([])
@@ -504,9 +584,11 @@ export default function BuildScreen() {
         <section className="bld-panel bld-canvas" aria-label="קנבס הטופס">
           <div className={`canvas-form${device === 'mobile' ? ' mobile' : ''}`}>
             <div>
-              <span className="event-tag">🎟 12 בנובמבר · תל אביב</span>
-              <div className="canvas-title">הרשמה לכנס המוצר 2026</div>
-              <div className="canvas-sub">3 דקות וסיימתם — נשמח לראותכם!</div>
+              {isConference && <span className="event-tag">🎟 12 בנובמבר · תל אביב</span>}
+              <div className="canvas-title">{formName}</div>
+              <div className="canvas-sub">
+                {isConference ? '3 דקות וסיימתם — נשמח לראותכם!' : 'כמה פרטים קצרים ואנחנו שם'}
+              </div>
             </div>
             <div className="progress-track">
               <div className="progress-fill" style={{ width: '40%' }} />
@@ -545,7 +627,7 @@ export default function BuildScreen() {
               ＋ גררו שדה לכאן
             </div>
             <div className="canvas-footer">
-              <span className="submit-demo">שליחת הרשמה ←</span>
+              <span className="submit-demo">{isConference ? 'שליחת הרשמה ←' : 'שליחה ←'}</span>
               <span className="powered">
                 <LogoArrow size={13} /> מופעל ע״י שווה עסקים 360
               </span>
@@ -586,6 +668,16 @@ export default function BuildScreen() {
               title="ביצוע חוזר (Ctrl+Y)"
             >
               <Redo2 size={15} />
+            </button>
+            <span className="vdivider" aria-hidden="true" />
+            <button
+              type="button"
+              className="undo-btn"
+              onClick={() => setShowVersions(true)}
+              aria-label="היסטוריית גרסאות"
+              title="היסטוריית גרסאות"
+            >
+              <History size={15} />
             </button>
           </div>
         </section>
@@ -748,6 +840,14 @@ export default function BuildScreen() {
           </div>
         )}
       </DragOverlay>
+
+      {showVersions && (
+        <VersionsModal
+          formId={formId}
+          onRestore={(restored) => commit(restored)}
+          onClose={() => setShowVersions(false)}
+        />
+      )}
     </DndContext>
   )
 }

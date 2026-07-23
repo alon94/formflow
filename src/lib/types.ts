@@ -120,9 +120,9 @@ export interface SubmissionDetail extends Submission {
 export interface AnalyticsPayload {
   total: number
   today: number
-  completion: number
-  avgTime: string
-  nps: number
+  completion: number | null
+  avgTime: string | null
+  nps: number | null
   topSource: { name: string; share: number }
   timeline: Record<'day' | 'week' | 'month', { label: string; value: number }[]>
   trackSplit: { name: string; value: number }[]
@@ -154,10 +154,46 @@ export interface NotifState {
   smsReminder: boolean
 }
 
+export interface WebhookConfig {
+  id: string
+  url: string
+  events: string[]
+  active: boolean
+  secret: string
+}
+
+export interface WebhookLog {
+  id: string
+  formId?: string
+  webhookId: string
+  submissionId: number | null
+  event: string
+  status: number
+  attempt: number
+  payload: string
+  at: string
+}
+
+export interface FormVersionMeta {
+  id: string
+  at: string
+  fieldCount: number
+}
+
+export interface FormSettings {
+  closeAt: string
+  maxResponses: string
+  onePerUser: boolean
+  passwordProtect: boolean
+}
+
 export interface FormDoc {
   id: string
   slug: string
   name: string
+  folder?: string
+  icon?: string
+  workspaceId?: string
   status: FormStatus
   version: number
   publishedAt?: string
@@ -165,4 +201,6 @@ export interface FormDoc {
   rules: LogicRule[]
   notif: NotifState
   branding: BrandingState
+  webhooks: WebhookConfig[]
+  settings: FormSettings
 }
