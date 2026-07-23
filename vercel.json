@@ -1,0 +1,7 @@
+{
+  "rewrites": [
+    { "source": "/admin", "destination": "/admin.html" },
+    { "source": "/form/:client/:form", "destination": "/formfill.html" },
+    { "source": "/((?!assets/).*)", "destination": "/index.html" }
+  ]
+}
