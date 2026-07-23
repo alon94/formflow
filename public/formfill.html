@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FormFlow — טופס</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{ --brand:#0D2C4A; --lime:#D9F56D; --ink:#122334; --muted:#5E7288; --line:#E3E9F0; }
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Heebo',Arial,sans-serif;background:#F5F7FA;color:var(--ink);min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:40px 16px}
+.wrap{width:100%;max-width:560px}
+.head{background:var(--brand);border-radius:18px 18px 0 0;padding:30px 34px;color:#fff}
+.head h1{font-size:24px;font-weight:800}
+.head p{margin-top:6px;font-size:14px;opacity:.85}
+.card{background:#fff;border-radius:0 0 18px 18px;padding:30px 34px;box-shadow:0 12px 40px rgba(13,44,74,.1)}
+label{display:block;font-size:13.5px;font-weight:700;color:var(--muted);margin:16px 0 6px}
+label .req{color:#C2410C}
+input,select,textarea{font-family:inherit;font-size:15px;width:100%;padding:12px 14px;border:1.5px solid var(--line);border-radius:10px;transition:border .15s}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand)}
+textarea{min-height:100px;resize:vertical}
+.chk{display:flex;align-items:center;gap:8px;margin-top:16px;font-size:14.5px}
+.chk input{width:auto}
+button{font-family:inherit;cursor:pointer;border:none;width:100%;margin-top:26px;padding:14px;border-radius:12px;background:var(--brand);color:#fff;font-size:16px;font-weight:700}
+button:disabled{opacity:.6;cursor:default}
+.msg{margin-top:16px;padding:12px 15px;border-radius:10px;font-size:14px}
+.msg.ok{background:#E8F7F0;color:#1E9E6A}
+.msg.err{background:#FDF0E9;color:#C2410C}
+.done{text-align:center;padding:50px 30px}
+.done .ic{font-size:52px}
+.done h2{margin-top:14px;font-size:22px;color:var(--brand)}
+.foot{text-align:center;margin-top:18px;font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head"><h1 id="fTitle">טוען…</h1><p id="fDesc"></p></div>
+  <div class="card" id="card"></div>
+  <div class="foot">מופעל על ידי FormFlow · שווה עסקים 360</div>
+</div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+/* CONFIG — עדכן לפני פריסה */
+const SUPABASE_URL = 'https://crcghkwschlppnopycvx.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNyY2doa3dzY2hscHBub3B5Y3Z4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2NTgyNDksImV4cCI6MjEwMDIzNDI0OX0.yAkeEj78FO6pv6jVEIFrQuC1OJPFuoJDO-nGWuVPFWE';
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* URL: /form/:clientSlug/:formSlug  (או ?client=..&form=.. לבדיקות) */
+const parts = location.pathname.split('/').filter(Boolean);
+const qp = new URLSearchParams(location.search);
+const clientSlug = qp.get('client') || parts[parts.indexOf('form') + 1];
+const formSlug   = qp.get('form')   || parts[parts.indexOf('form') + 2];
+
+let form = null;
+
+async function load() {
+  if (!clientSlug || !formSlug) return fail('קישור טופס לא תקין');
+  // שליפה דרך RPC מאובטח (security definer) — אנונימי לא ניגש ישירות לטבלת clients
+  const { data, error } = await sb.rpc('get_public_form', {
+    p_client_slug: clientSlug, p_form_slug: formSlug
+  });
+
+  if (error || !data || !data.length) return fail('הטופס לא נמצא או שאינו מפורסם');
+  const row = data[0];
+  form = { id: row.form_id, client_id: row.client_id, title: row.title,
+           description: row.description, schema: row.schema, settings: row.settings };
+  document.title = form.title + ' — FormFlow';
+  if (row.brand_color) document.documentElement.style.setProperty('--brand', row.brand_color);
+  document.getElementById('fTitle').textContent = form.title;
+  document.getElementById('fDesc').textContent = form.description || row.client_name || '';
+  render();
+}
+
+function fail(t) {
+  document.getElementById('fTitle').textContent = 'שגיאה';
+  document.getElementById('card').innerHTML = `<div class="msg err">${t}</div>`;
+}
+
+function render() {
+  const fields = form.schema?.fields || [];
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  document.getElementById('card').innerHTML = fields.map(f => {
+    const req = f.required ? '<span class="req">*</span>' : '';
+    const id = 'fld_' + f.key;
+    if (f.type === 'textarea') return `<label for="${id}">${esc(f.label)} ${req}</label><textarea id="${id}" data-key="${esc(f.key)}" ${f.required?'required':''}></textarea>`;
+    if (f.type === 'select') return `<label for="${id}">${esc(f.label)} ${req}</label><select id="${id}" data-key="${esc(f.key)}" ${f.required?'required':''}><option value="">בחרו…</option>${(f.options||[]).map(o=>`<option>${esc(o)}</option>`).join('')}</select>`;
+    if (f.type === 'checkbox') return `<div class="chk"><input type="checkbox" id="${id}" data-key="${esc(f.key)}"><label for="${id}" style="margin:0">${esc(f.label)} ${req}</label></div>`;
+    return `<label for="${id}">${esc(f.label)} ${req}</label><input type="${esc(f.type||'text')}" id="${id}" data-key="${esc(f.key)}" ${f.required?'required':''} ${['email','tel','number'].includes(f.type)?'dir="ltr"':''}>`;
+  }).join('') + `<button id="sendBtn">שליחה</button><div id="m"></div>`;
+
+  document.getElementById('sendBtn').addEventListener('click', submit);
+}
+
+async function submit() {
+  const btn = document.getElementById('sendBtn');
+  const m = document.getElementById('m');
+  const data = {};
+  let valid = true;
+  document.querySelectorAll('[data-key]').forEach(el => {
+    const v = el.type === 'checkbox' ? el.checked : el.value.trim();
+    if (el.required && !v) { el.style.borderColor = '#C2410C'; valid = false; }
+    else el.style.borderColor = '';
+    data[el.dataset.key] = v;
+  });
+  if (!valid) { m.innerHTML = '<div class="msg err">נא למלא את כל שדות החובה</div>'; return; }
+
+  btn.disabled = true;
+  const { error } = await sb.from('responses').insert({
+    form_id: form.id,
+    client_id: form.client_id,
+    data,
+    meta: { user_agent: navigator.userAgent, referrer: document.referrer || null, url: location.href }
+  });
+  if (error) {
+    btn.disabled = false;
+    m.innerHTML = '<div class="msg err">אירעה שגיאה בשליחה. נסו שוב.</div>';
+    return;
+  }
+  document.getElementById('card').innerHTML = `<div class="done"><div class="ic">✅</div><h2>${form.settings?.success_message || 'הטופס נשלח בהצלחה!'}</h2></div>`;
+}
+
+load();
+</script>
+</body>
+</html>

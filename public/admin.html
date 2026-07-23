@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FormFlow — ניהול | שווה עסקים 360</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#0D2C4A; --navy-2:#123A5F; --navy-3:#1B4A75;
+  --gold:#C9A961; --gold-soft:#EADFC8;
+  --lime:#D9F56D;
+  --ink:#122334; --muted:#5E7288; --line:#E3E9F0;
+  --bg:#F5F7FA; --card:#FFFFFF;
+  --ok:#1E9E6A; --warn:#D97706; --err:#C2410C;
+  --r:14px; --shadow:0 6px 24px rgba(13,44,74,.08);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Heebo',Arial,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh}
+button{font-family:inherit;cursor:pointer;border:none}
+input,select,textarea{font-family:inherit;font-size:15px;width:100%;padding:11px 14px;border:1.5px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);transition:border .15s}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--gold)}
+label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:14px 0 6px}
+.hidden{display:none!important}
+
+/* ---------- Auth screen ---------- */
+#authView{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--navy) 0%,var(--navy-3) 100%);padding:24px}
+.authCard{background:#fff;border-radius:20px;padding:44px 40px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.logo{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.logoMark{width:38px;height:38px;border-radius:10px;background:var(--navy);color:var(--lime);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px}
+.logo h1{font-size:22px;font-weight:800;color:var(--navy)}
+.authCard p.sub{color:var(--muted);font-size:14px;margin-bottom:26px}
+.btnGoogle{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:12px;border:1.5px solid var(--line);border-radius:12px;background:#fff;font-size:15px;font-weight:600;color:var(--ink);transition:box-shadow .15s}
+.btnGoogle:hover{box-shadow:var(--shadow)}
+.divider{display:flex;align-items:center;gap:12px;margin:22px 0;color:var(--muted);font-size:12px}
+.divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--line)}
+.btnPrimary{width:100%;padding:12px;border-radius:12px;background:var(--navy);color:#fff;font-size:15px;font-weight:700;margin-top:14px;transition:background .15s}
+.btnPrimary:hover{background:var(--navy-2)}
+.btnPrimary:disabled{opacity:.55;cursor:default}
+.notice{margin-top:16px;padding:11px 14px;border-radius:10px;font-size:13px;line-height:1.5}
+.notice.ok{background:#E8F7F0;color:var(--ok)}
+.notice.err{background:#FDF0E9;color:var(--err)}
+
+/* ---------- Onboarding ---------- */
+#onboardView{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);padding:24px}
+.obCard{background:#fff;border-radius:20px;padding:40px;width:100%;max-width:560px;box-shadow:var(--shadow)}
+.steps{display:flex;gap:8px;margin-bottom:26px}
+.steps span{flex:1;height:5px;border-radius:3px;background:var(--line)}
+.steps span.on{background:var(--gold)}
+.obCard h2{font-size:24px;font-weight:800;color:var(--navy);margin-bottom:6px}
+.obCard p.sub{color:var(--muted);font-size:14px}
+.slugPrev{font-size:12px;color:var(--muted);margin-top:6px;direction:ltr;text-align:left}
+.colorRow{display:flex;gap:10px;margin-top:8px}
+.colorDot{width:36px;height:36px;border-radius:50%;border:3px solid transparent;cursor:pointer}
+.colorDot.on{border-color:var(--gold)}
+.obNav{display:flex;justify-content:space-between;margin-top:30px;gap:10px}
+.btnGhost{padding:11px 22px;border-radius:12px;background:#fff;border:1.5px solid var(--line);font-weight:600;color:var(--muted)}
+
+/* ---------- App shell ---------- */
+#appView{display:flex;min-height:100vh}
+aside{width:250px;background:var(--navy);color:#fff;padding:22px 16px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+aside .logo h1{color:#fff;font-size:18px}
+aside .logoMark{background:var(--lime);color:var(--navy)}
+.clientBadge{margin:20px 0 8px;padding:12px;border-radius:12px;background:rgba(255,255,255,.07);font-size:13px}
+.clientBadge b{display:block;font-size:15px;color:var(--gold-soft)}
+nav{margin-top:14px;display:flex;flex-direction:column;gap:4px}
+nav button{display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:10px;background:none;color:#C7D3DF;font-size:14.5px;font-weight:500;text-align:right;width:100%}
+nav button.on{background:rgba(217,245,109,.14);color:var(--lime);font-weight:700}
+nav button:hover:not(.on){background:rgba(255,255,255,.06)}
+aside .spacer{flex:1}
+.userRow{display:flex;align-items:center;gap:10px;padding:10px;border-top:1px solid rgba(255,255,255,.12)}
+.userRow img{width:34px;height:34px;border-radius:50%}
+.userRow .nm{font-size:13px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.userRow button{background:none;color:#8FA5B8;font-size:12px}
+main{flex:1;padding:34px 40px;max-width:1160px}
+.pageHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
+.pageHead h2{font-size:26px;font-weight:800;color:var(--navy)}
+.btnGold{padding:11px 20px;border-radius:12px;background:var(--gold);color:var(--navy);font-weight:700;font-size:14.5px}
+.btnGold:hover{filter:brightness(1.05)}
+
+/* forms grid */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px}
+.card{background:var(--card);border-radius:var(--r);padding:20px;box-shadow:var(--shadow);border:1px solid var(--line)}
+.card h3{font-size:17px;font-weight:700;color:var(--navy);margin-bottom:4px}
+.card .desc{font-size:13px;color:var(--muted);min-height:20px;margin-bottom:12px}
+.tag{display:inline-block;font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:20px}
+.tag.published{background:#E8F7F0;color:var(--ok)}
+.tag.draft{background:#FFF4E0;color:var(--warn)}
+.tag.archived{background:var(--line);color:var(--muted)}
+.cardFoot{display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+.cardFoot .cnt{font-size:13px;color:var(--muted)}
+.cardFoot .acts{display:flex;gap:6px}
+.miniBtn{padding:6px 12px;border-radius:8px;font-size:12.5px;font-weight:600;background:var(--bg);color:var(--navy);border:1px solid var(--line)}
+.miniBtn:hover{background:var(--gold-soft)}
+.empty{padding:60px;text-align:center;color:var(--muted);background:#fff;border:1.5px dashed var(--line);border-radius:var(--r)}
+
+/* modal */
+.overlay{position:fixed;inset:0;background:rgba(13,44,74,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px}
+.modal{background:#fff;border-radius:18px;padding:30px;width:100%;max-width:640px;max-height:90vh;overflow:auto}
+.modal h3{font-size:20px;font-weight:800;color:var(--navy);margin-bottom:14px}
+.fieldRow{display:flex;gap:8px;align-items:center;margin-top:8px;background:var(--bg);padding:10px;border-radius:10px}
+.fieldRow input,.fieldRow select{padding:8px 10px;font-size:13.5px}
+.fieldRow .del{background:none;color:var(--err);font-size:18px;padding:0 6px}
+.modalNav{display:flex;justify-content:flex-end;gap:10px;margin-top:22px}
+
+/* responses table */
+.tblWrap{background:#fff;border-radius:var(--r);box-shadow:var(--shadow);overflow:auto;border:1px solid var(--line)}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{background:var(--navy);color:#fff;padding:11px 14px;text-align:right;font-weight:600;white-space:nowrap;position:sticky;top:0}
+td{padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top;max-width:260px;overflow-wrap:break-word}
+tr:hover td{background:#FAFBFC}
+
+@media(max-width:820px){
+  #appView{flex-direction:column}
+  aside{width:100%;height:auto;position:static;flex-direction:row;align-items:center;flex-wrap:wrap}
+  nav{flex-direction:row;margin:0 auto}
+  main{padding:20px}
+}
+</style>
+</head>
+<body>
+
+<!-- ======================= AUTH ======================= -->
+<div id="authView">
+  <div class="authCard">
+    <div class="logo"><div class="logoMark">F</div><h1>FormFlow</h1></div>
+    <p class="sub">מערכת הטפסים של שווה עסקים 360 — כניסה לאזור הניהול</p>
+
+    <button class="btnGoogle" onclick="signInGoogle()">
+      <svg width="19" height="19" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+      המשך עם Google
+    </button>
+
+    <div class="divider">או באמצעות אימייל</div>
+    <input id="emailInput" type="email" dir="ltr" placeholder="name@company.co.il">
+    <button class="btnPrimary" onclick="signInEmail()">שלחו לי קישור כניסה</button>
+    <div id="authMsg"></div>
+  </div>
+</div>
+
+<!-- ======================= ONBOARDING ======================= -->
+<div id="onboardView" class="hidden">
+  <div class="obCard">
+    <div class="steps"><span id="st1" class="on"></span><span id="st2"></span><span id="st3"></span></div>
+
+    <div id="obStep1">
+      <h2>ברוכים הבאים ל-FormFlow 👋</h2>
+      <p class="sub">נגדיר את הארגון שלכם בשלושה צעדים קצרים.</p>
+      <label>שם הארגון / הלקוח</label>
+      <input id="obName" placeholder="לדוגמה: שווה סוכנות לביטוח" oninput="autoSlug()">
+      <label>מזהה באנגלית (יופיע בקישורי הטפסים)</label>
+      <input id="obSlug" dir="ltr" placeholder="shaveh-insurance">
+      <div class="slugPrev">formflow…/form/<b id="slugPrev">your-org</b>/…</div>
+    </div>
+
+    <div id="obStep2" class="hidden">
+      <h2>מיתוג</h2>
+      <p class="sub">צבע ראשי שיופיע בטפסים הציבוריים של הארגון.</p>
+      <label>צבע מותג</label>
+      <div class="colorRow" id="colorRow"></div>
+      <label>אימייל ליצירת קשר (אופציונלי)</label>
+      <input id="obEmail" dir="ltr" type="email" placeholder="service@company.co.il">
+    </div>
+
+    <div id="obStep3" class="hidden">
+      <h2>הכל מוכן 🎉</h2>
+      <p class="sub">הארגון ייווצר, ותקבלו גישה מלאה לבניית טפסים, איסוף תגובות וניהול צוות. אפשר להזמין חברי צוות נוספים מתוך המערכת.</p>
+      <div class="notice ok" style="margin-top:20px">לחיצה על ״סיום״ תיצור את הארגון ותעביר אתכם ללוח הבקרה.</div>
+    </div>
+
+    <div id="obMsg"></div>
+    <div class="obNav">
+      <button class="btnGhost" id="obBack" onclick="obNav(-1)" style="visibility:hidden">חזרה</button>
+      <button class="btnPrimary" id="obNext" style="width:auto;padding:11px 34px;margin:0" onclick="obNav(1)">המשך</button>
+    </div>
+  </div>
+</div>
+
+<!-- ======================= APP ======================= -->
+<div id="appView" class="hidden">
+  <aside>
+    <div class="logo"><div class="logoMark">F</div><h1>FormFlow</h1></div>
+    <div class="clientBadge">ארגון פעיל<b id="clientName">—</b></div>
+    <nav>
+      <button id="navForms" class="on" onclick="showPage('forms')">📋 טפסים</button>
+      <button id="navResponses" onclick="showPage('responses')">📥 תגובות</button>
+      <button id="navTeam" onclick="showPage('team')">👥 צוות</button>
+    </nav>
+    <div class="spacer"></div>
+    <div class="userRow">
+      <img id="userAvatar" src="" alt="" onerror="this.style.display='none'">
+      <span class="nm" id="userName">—</span>
+      <button onclick="signOut()">יציאה</button>
+    </div>
+  </aside>
+
+  <main>
+    <!-- FORMS -->
+    <section id="pageForms">
+      <div class="pageHead">
+        <h2>הטפסים שלי</h2>
+        <button class="btnGold" onclick="openFormModal()">+ טופס חדש</button>
+      </div>
+      <div id="formsGrid" class="grid"></div>
+    </section>
+
+    <!-- RESPONSES -->
+    <section id="pageResponses" class="hidden">
+      <div class="pageHead">
+        <h2>תגובות</h2>
+        <div style="display:flex;gap:10px;align-items:center">
+          <select id="respFormSel" style="width:260px" onchange="loadResponses()"></select>
+          <button class="btnGold" onclick="exportCSV()">⬇ ייצוא CSV</button>
+        </div>
+      </div>
+      <div id="respWrap" class="tblWrap"></div>
+    </section>
+
+    <!-- TEAM -->
+    <section id="pageTeam" class="hidden">
+      <div class="pageHead"><h2>צוות</h2></div>
+      <div id="teamWrap" class="tblWrap"></div>
+      <p style="font-size:13px;color:var(--muted);margin-top:12px">להוספת חבר צוות: בקשו ממנו להתחבר עם Google, ואז הוסיפו את המזהה שלו דרך Supabase או פונקציית הזמנה (שלב הרחבה).</p>
+    </section>
+  </main>
+</div>
+
+<!-- ======================= FORM BUILDER MODAL ======================= -->
+<div id="formModal" class="overlay hidden">
+  <div class="modal">
+    <h3 id="fmTitle">טופס חדש</h3>
+    <label>כותרת הטופס</label>
+    <input id="fmName" placeholder="לדוגמה: רישום לכנס 2026" oninput="fmAutoSlug()">
+    <label>מזהה (slug)</label>
+    <input id="fmSlug" dir="ltr" placeholder="conf-2026">
+    <label>תיאור (אופציונלי)</label>
+    <input id="fmDesc" placeholder="יופיע מתחת לכותרת בטופס הציבורי">
+    <label>סטטוס</label>
+    <select id="fmStatus">
+      <option value="draft">טיוטה</option>
+      <option value="published">מפורסם</option>
+      <option value="archived">בארכיון</option>
+    </select>
+
+    <label style="margin-top:20px">שדות הטופס</label>
+    <div id="fmFields"></div>
+    <button class="miniBtn" style="margin-top:10px" onclick="addField()">+ הוספת שדה</button>
+
+    <div id="fmMsg"></div>
+    <div class="modalNav">
+      <button class="btnGhost" onclick="closeFormModal()">ביטול</button>
+      <button class="btnPrimary" style="width:auto;margin:0;padding:11px 30px" onclick="saveForm()">שמירה</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+/* ============================================================
+   CONFIG — עדכן לפני פריסה
+   ============================================================ */
+const SUPABASE_URL = 'https://crcghkwschlppnopycvx.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNyY2doa3dzY2hscHBub3B5Y3Z4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2NTgyNDksImV4cCI6MjEwMDIzNDI0OX0.yAkeEj78FO6pv6jVEIFrQuC1OJPFuoJDO-nGWuVPFWE';
+
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+window.sb = sb;
+
+/* ---------- state ---------- */
+let currentUser = null, currentClient = null, forms = [], editingFormId = null;
+const BRAND_COLORS = ['#0D2C4A','#C9A961','#1E9E6A','#7C3AED','#C2410C','#0E7490'];
+
+/* ---------- utils ---------- */
+const $ = id => document.getElementById(id);
+const show = id => $(id).classList.remove('hidden');
+const hide = id => $(id).classList.add('hidden');
+const msg = (id, text, ok=false) => $(id).innerHTML = text ? `<div class="notice ${ok?'ok':'err'}">${text}</div>` : '';
+const slugify = s => s.toLowerCase().replace(/[^a-z0-9\u0590-\u05FF\s-]/g,'').trim()
+  .replace(/[\u0590-\u05FF]/g,'').replace(/\s+/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'') || '';
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ============================================================
+   AUTH
+   ============================================================ */
+window.signInGoogle = async () => {
+  const { error } = await sb.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: window.location.href.split('#')[0] }
+  });
+  if (error) msg('authMsg', 'שגיאה בהתחברות: ' + error.message);
+};
+
+window.signInEmail = async () => {
+  const email = $('emailInput').value.trim();
+  if (!email) return msg('authMsg', 'נא להזין כתובת אימייל');
+  const { error } = await sb.auth.signInWithOtp({
+    email, options: { emailRedirectTo: window.location.href.split('#')[0] }
+  });
+  if (error) msg('authMsg', 'שגיאה: ' + error.message);
+  else msg('authMsg', 'קישור כניסה נשלח לאימייל שלך ✉️', true);
+};
+
+window.signOut = async () => { await sb.auth.signOut(); location.reload(); };
+
+sb.auth.onAuthStateChange(async (_event, session) => {
+  if (session?.user && !currentUser) {
+    currentUser = session.user;
+    await route();
+  }
+});
+
+async function route() {
+  hide('authView');
+  // האם המשתמש כבר משויך ללקוח?
+  const { data: memberships } = await sb.from('client_members')
+    .select('client_id, role, clients(*)').eq('user_id', currentUser.id);
+
+  if (!memberships || memberships.length === 0) {
+    show('onboardView');           // אונבורדינג — יצירת ארגון ראשון
+  } else {
+    currentClient = memberships[0].clients;
+    enterApp();
+  }
+}
+
+/* ============================================================
+   ONBOARDING
+   ============================================================ */
+let obStep = 1;
+window.autoSlug = () => {
+  const s = slugify($('obName').value) || 'your-org';
+  $('obSlug').value = slugify($('obName').value);
+  $('slugPrev').textContent = s;
+};
+$('obSlug').addEventListener('input', () => $('slugPrev').textContent = $('obSlug').value || 'your-org');
+
+// color picker
+let obColor = BRAND_COLORS[0];
+$('colorRow').innerHTML = BRAND_COLORS.map((c,i) =>
+  `<div class="colorDot ${i===0?'on':''}" style="background:${c}" data-c="${c}"></div>`).join('');
+$('colorRow').addEventListener('click', e => {
+  const d = e.target.closest('.colorDot'); if (!d) return;
+  document.querySelectorAll('.colorDot').forEach(x=>x.classList.remove('on'));
+  d.classList.add('on'); obColor = d.dataset.c;
+});
+
+window.obNav = async dir => {
+  msg('obMsg','');
+  if (dir === 1 && obStep === 1) {
+    if (!$('obName').value.trim()) return msg('obMsg','נא להזין שם ארגון');
+    if (!/^[a-z0-9][a-z0-9-]{1,48}$/.test($('obSlug').value)) return msg('obMsg','המזהה חייב להיות באותיות אנגליות קטנות, ספרות ומקפים (2–49 תווים)');
+  }
+  if (dir === 1 && obStep === 3) return finishOnboarding();
+  obStep = Math.min(3, Math.max(1, obStep + dir));
+  [1,2,3].forEach(i => {
+    $('obStep'+i).classList.toggle('hidden', i !== obStep);
+    $('st'+i).classList.toggle('on', i <= obStep);
+  });
+  $('obBack').style.visibility = obStep === 1 ? 'hidden' : 'visible';
+  $('obNext').textContent = obStep === 3 ? 'סיום ✓' : 'המשך';
+};
+
+async function finishOnboarding() {
+  $('obNext').disabled = true;
+  const { data, error } = await sb.rpc('create_client', {
+    p_name: $('obName').value.trim(),
+    p_slug: $('obSlug').value.trim(),
+    p_brand_color: obColor
+  });
+  if (error) {
+    $('obNext').disabled = false;
+    return msg('obMsg', error.message.includes('duplicate') ? 'המזהה כבר תפוס — בחרו מזהה אחר' : 'שגיאה: ' + error.message);
+  }
+  if ($('obEmail').value.trim()) {
+    await sb.from('clients').update({ contact_email: $('obEmail').value.trim(), onboarding_completed: true }).eq('id', data.id);
+  } else {
+    await sb.from('clients').update({ onboarding_completed: true }).eq('id', data.id);
+  }
+  currentClient = data;
+  hide('onboardView');
+  enterApp();
+}
+
+/* ============================================================
+   APP SHELL
+   ============================================================ */
+async function enterApp() {
+  show('appView');
+  $('clientName').textContent = currentClient.name;
+  $('userName').textContent = currentUser.user_metadata?.full_name || currentUser.email;
+  $('userAvatar').src = currentUser.user_metadata?.avatar_url || '';
+  await loadForms();
+}
+
+window.showPage = p => {
+  ['Forms','Responses','Team'].forEach(x => {
+    $('page'+x).classList.toggle('hidden', x.toLowerCase() !== p);
+    $('nav'+x).classList.toggle('on', x.toLowerCase() === p);
+  });
+  if (p === 'responses') { fillRespSelect(); loadResponses(); }
+  if (p === 'team') loadTeam();
+};
+
+/* ============================================================
+   FORMS
+   ============================================================ */
+async function loadForms() {
+  const { data, error } = await sb.from('forms')
+    .select('*, responses(count)')
+    .eq('client_id', currentClient.id)
+    .order('created_at', { ascending: false });
+  forms = data || [];
+  renderForms();
+}
+
+function renderForms() {
+  const g = $('formsGrid');
+  if (!forms.length) {
+    g.innerHTML = `<div class="empty" style="grid-column:1/-1">אין עדיין טפסים.<br>לחצו על ״+ טופס חדש״ כדי ליצור את הראשון.</div>`;
+    return;
+  }
+  const statusHe = { published:'מפורסם', draft:'טיוטה', archived:'בארכיון' };
+  g.innerHTML = forms.map(f => `
+    <div class="card">
+      <span class="tag ${f.status}">${statusHe[f.status]}</span>
+      <h3 style="margin-top:8px">${esc(f.title)}</h3>
+      <div class="desc">${esc(f.description || '')}</div>
+      <div style="font-size:12px;color:var(--muted);direction:ltr;text-align:left">/form/${esc(currentClient.slug)}/${esc(f.slug)}</div>
+      <div class="cardFoot">
+        <span class="cnt">📥 ${f.responses?.[0]?.count ?? 0} תגובות</span>
+        <div class="acts">
+          <button class="miniBtn" onclick="openFormModal('${f.id}')">עריכה</button>
+          <button class="miniBtn" onclick="copyLink('${esc(f.slug)}')">🔗 קישור</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+window.copyLink = slug => {
+  const url = `${location.origin}/form/${currentClient.slug}/${slug}`;
+  navigator.clipboard.writeText(url);
+  alert('הקישור הועתק:\n' + url);
+};
+
+/* ---------- builder modal ---------- */
+const FIELD_TYPES = [['text','טקסט'],['email','אימייל'],['tel','טלפון'],['number','מספר'],['textarea','טקסט ארוך'],['select','בחירה מרשימה'],['checkbox','תיבת סימון'],['date','תאריך']];
+let fmFields = [];
+
+window.openFormModal = (id=null) => {
+  editingFormId = id;
+  const f = forms.find(x => x.id === id);
+  $('fmTitle').textContent = f ? 'עריכת טופס' : 'טופס חדש';
+  $('fmName').value = f?.title || '';
+  $('fmSlug').value = f?.slug || '';
+  $('fmDesc').value = f?.description || '';
+  $('fmStatus').value = f?.status || 'draft';
+  fmFields = f ? structuredClone(f.schema.fields || []) : [
+    { key:'full_name', label:'שם מלא', type:'text', required:true },
+    { key:'email', label:'אימייל', type:'email', required:true }
+  ];
+  renderFields(); msg('fmMsg','');
+  show('formModal');
+};
+window.closeFormModal = () => hide('formModal');
+window.fmAutoSlug = () => { if (!editingFormId) $('fmSlug').value = slugify($('fmName').value); };
+
+function renderFields() {
+  $('fmFields').innerHTML = fmFields.map((f,i) => `
+    <div class="fieldRow">
+      <input style="flex:2" value="${esc(f.label)}" placeholder="תווית" onchange="updField(${i},'label',this.value)">
+      <input style="flex:1.4" dir="ltr" value="${esc(f.key)}" placeholder="key" onchange="updField(${i},'key',this.value)">
+      <select style="flex:1.2" onchange="updField(${i},'type',this.value)">
+        ${FIELD_TYPES.map(([v,l]) => `<option value="${v}" ${f.type===v?'selected':''}>${l}</option>`).join('')}
+      </select>
+      <input style="flex:1.4;${f.type==='select'?'':'display:none'}" dir="ltr" value="${esc((f.options||[]).join(','))}" placeholder="option1,option2" onchange="updField(${i},'options',this.value)">
+      <label style="margin:0;display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap">
+        <input type="checkbox" style="width:auto" ${f.required?'checked':''} onchange="updField(${i},'required',this.checked)"> חובה
+      </label>
+      <button class="del" onclick="delField(${i})">✕</button>
+    </div>`).join('');
+}
+window.updField = (i,k,v) => {
+  if (k === 'options') fmFields[i][k] = v.split(',').map(s=>s.trim()).filter(Boolean);
+  else fmFields[i][k] = v;
+  if (k === 'type') renderFields();
+};
+window.delField = i => { fmFields.splice(i,1); renderFields(); };
+window.addField = () => { fmFields.push({ key:'field_'+(fmFields.length+1), label:'', type:'text', required:false }); renderFields(); };
+
+window.saveForm = async () => {
+  const title = $('fmName').value.trim(), slug = $('fmSlug').value.trim();
+  if (!title) return msg('fmMsg','נא להזין כותרת');
+  if (!/^[a-z0-9][a-z0-9-]{1,48}$/.test(slug)) return msg('fmMsg','slug לא תקין (אותיות אנגליות קטנות, ספרות ומקפים)');
+  if (!fmFields.length) return msg('fmMsg','נדרש לפחות שדה אחד');
+
+  const payload = {
+    client_id: currentClient.id, title, slug,
+    description: $('fmDesc').value.trim() || null,
+    status: $('fmStatus').value,
+    schema: { fields: fmFields },
+    created_by: currentUser.id
+  };
+  const q = editingFormId
+    ? sb.from('forms').update(payload).eq('id', editingFormId)
+    : sb.from('forms').insert(payload);
+  const { error } = await q;
+  if (error) return msg('fmMsg', error.message.includes('duplicate') ? 'ה-slug כבר קיים בארגון' : error.message);
+  closeFormModal(); await loadForms();
+};
+
+/* ============================================================
+   RESPONSES
+   ============================================================ */
+function fillRespSelect() {
+  $('respFormSel').innerHTML = forms.map(f => `<option value="${f.id}">${esc(f.title)}</option>`).join('')
+    || '<option value="">אין טפסים</option>';
+}
+
+let lastResponses = [], lastFormSchema = [];
+window.loadResponses = async () => {
+  const formId = $('respFormSel').value;
+  if (!formId) { $('respWrap').innerHTML = '<div class="empty">אין טפסים</div>'; return; }
+  const form = forms.find(f => f.id === formId);
+  lastFormSchema = form?.schema?.fields || [];
+  const { data } = await sb.from('responses').select('*')
+    .eq('form_id', formId).order('submitted_at', { ascending:false }).limit(500);
+  lastResponses = data || [];
+  if (!lastResponses.length) { $('respWrap').innerHTML = '<div class="empty" style="border:none">אין עדיין תגובות לטופס זה</div>'; return; }
+
+  const cols = lastFormSchema.length ? lastFormSchema.map(f=>f.key)
+    : [...new Set(lastResponses.flatMap(r => Object.keys(r.data)))];
+  const labels = Object.fromEntries(lastFormSchema.map(f => [f.key, f.label]));
+
+  $('respWrap').innerHTML = `<table>
+    <thead><tr><th>תאריך</th>${cols.map(c=>`<th>${esc(labels[c]||c)}</th>`).join('')}</tr></thead>
+    <tbody>${lastResponses.map(r => `<tr>
+      <td style="white-space:nowrap">${new Date(r.submitted_at).toLocaleString('he-IL')}</td>
+      ${cols.map(c=>`<td>${esc(typeof r.data[c]==='object' ? JSON.stringify(r.data[c]) : r.data[c] ?? '')}</td>`).join('')}
+    </tr>`).join('')}</tbody></table>`;
+};
+
+window.exportCSV = () => {
+  if (!lastResponses.length) return alert('אין תגובות לייצוא');
+  const cols = lastFormSchema.length ? lastFormSchema.map(f=>f.key)
+    : [...new Set(lastResponses.flatMap(r => Object.keys(r.data)))];
+  const labels = Object.fromEntries(lastFormSchema.map(f => [f.key, f.label]));
+  const csvCell = v => `"${String(v ?? '').replace(/"/g,'""')}"`;
+  const rows = [
+    ['submitted_at', ...cols.map(c=>labels[c]||c)].map(csvCell).join(','),
+    ...lastResponses.map(r => [r.submitted_at, ...cols.map(c => typeof r.data[c]==='object'?JSON.stringify(r.data[c]):r.data[c])].map(csvCell).join(','))
+  ].join('\r\n');
+  const blob = new Blob(['\uFEFF'+rows], { type:'text/csv;charset=utf-8' });
+  const a = Object.assign(document.createElement('a'), { href:URL.createObjectURL(blob), download:'responses.csv' });
+  a.click();
+};
+
+/* ============================================================
+   TEAM
+   ============================================================ */
+async function loadTeam() {
+  const { data } = await sb.from('client_members')
+    .select('role, created_at, user_id').eq('client_id', currentClient.id);
+  const roleHe = { owner:'בעלים', admin:'מנהל', editor:'עורך', viewer:'צופה' };
+  $('teamWrap').innerHTML = `<table>
+    <thead><tr><th>משתמש</th><th>תפקיד</th><th>הצטרף</th></tr></thead>
+    <tbody>${(data||[]).map(m => `<tr>
+      <td dir="ltr" style="text-align:left">${m.user_id === currentUser.id ? esc(currentUser.email)+' (אני)' : esc(m.user_id)}</td>
+      <td>${roleHe[m.role]||m.role}</td>
+      <td>${new Date(m.created_at).toLocaleDateString('he-IL')}</td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+/* ---------- boot ---------- */
+(async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session?.user) { currentUser = session.user; await route(); }
+})();
+</script>
+</body>
+</html>
