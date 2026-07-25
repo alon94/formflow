@@ -186,6 +186,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setUser(null)
     setOnboardingDone(false)
     localStorage.removeItem(USER_KEY)
+    /* also terminate the Supabase session (real auth) */
+    import('./supabase').then(({ supabase }) => supabase.auth.signOut()).catch(() => {})
   }, [])
 
   const completeOnboarding = useCallback(() => {

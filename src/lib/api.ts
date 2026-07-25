@@ -9,6 +9,8 @@ import type {
   WebhookLog,
 } from './types'
 
+import { supabaseConfigured } from './supabase'
+
 const BASE = '/api/v1'
 const USER_KEY = 'formflow.user'
 
@@ -21,10 +23,12 @@ export class SubmitValidationError extends Error {
 }
 
 /* set true the first time any call falls back to the client-side backend
- * (static hosting with no server). Components read it to show the demo hint. */
+ * (static hosting with no server). Components read it to show the demo hint.
+ * When Supabase is configured the fallback is the cloud backend, so the app
+ * is NOT in local/demo mode even without an /api server. */
 let localMode = false
 export function isLocalMode(): boolean {
-  return localMode
+  return localMode && !supabaseConfigured()
 }
 
 function authHeaders(): Record<string, string> {
@@ -65,8 +69,11 @@ async function req<T>(path: string, init: RequestInit | undefined, local: () => 
   }
 }
 
-/* lazy import keeps the local backend out of the initial chunk until needed */
+/* lazy import keeps the fallback backend out of the initial chunk until needed.
+ * With Supabase configured the fallback is the real cloud backend (multi-tenant
+ * Postgres + RLS); otherwise the localStorage demo backend. */
 async function lb() {
+  if (supabaseConfigured()) return (await import('./supabaseBackend')).supabaseBackend
   return (await import('./localBackend')).localBackend
 }
 
