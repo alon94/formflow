@@ -750,6 +750,52 @@ export default function BuildScreen() {
                       onChange={(e) => patchSelected({ help: e.target.value })}
                     />
                   </div>
+                  {(selected.type === 'radio' ||
+                    selected.type === 'dropdown' ||
+                    selected.type === 'checkbox') && (
+                    <div className="set-group">
+                      <span className="field-label">אפשרויות הבחירה</span>
+                      {(selected.options ?? []).map((opt, i) => (
+                        <div key={i} className="option-row">
+                          <input
+                            className="text-input"
+                            value={opt}
+                            placeholder={`אפשרות ${i + 1}`}
+                            onChange={(e) => {
+                              const next = [...(selected.options ?? [])]
+                              next[i] = e.target.value
+                              patchSelected({ options: next })
+                            }}
+                          />
+                          <button
+                            type="button"
+                            className="icon-btn"
+                            aria-label={`מחיקת אפשרות ${i + 1}`}
+                            disabled={(selected.options ?? []).length <= 1}
+                            onClick={() => {
+                              const next = (selected.options ?? []).filter((_, j) => j !== i)
+                              patchSelected({ options: next }, true)
+                            }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        className="add-option-btn"
+                        onClick={() => {
+                          const next = [
+                            ...(selected.options ?? []),
+                            `אפשרות ${(selected.options ?? []).length + 1}`,
+                          ]
+                          patchSelected({ options: next }, true)
+                        }}
+                      >
+                        + הוספת אפשרות
+                      </button>
+                    </div>
+                  )}
                 </>
               )}
               <div className="toggle-row">

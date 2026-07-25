@@ -530,3 +530,39 @@
   color: var(--text-secondary);
   line-height: 1.6;
 }
+
+/* option editor for radio / dropdown / checkbox fields */
+.option-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.option-row .text-input {
+  flex: 1;
+}
+.option-row .icon-btn {
+  flex: 0 0 auto;
+  color: #C2410C;
+}
+.option-row .icon-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.add-option-btn {
+  margin-top: 4px;
+  padding: 7px 14px;
+  border: 1.5px dashed var(--line, #E3E9F0);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--navy, #0D2C4A);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+}
+.add-option-btn:hover {
+  background: #F5F1E6;
+  border-color: var(--gold, #C9A961);
+}
