@@ -9,6 +9,8 @@ import { buildSeedDb } from '../../shared/seed.js'
 import { computeFillState, runSubmitActions, skippedPages } from '../../shared/rules.js'
 import { validateSubmission } from '../../shared/validate.js'
 import type {
+  CustomTemplate,
+  TemplateScope,
   AnalyticsPayload,
   FormDoc,
   FormField,
@@ -57,6 +59,7 @@ interface LocalDb {
   submissions: LocalSubmission[]
   notifications: NotificationEntry[]
   webhookLogs: WebhookLog[]
+  customTemplates: CustomTemplate[]
   versions: { id: string; formId: string; at: string; fields: FormField[] }[]
   nextSubmissionId: number
   baseline: { total: number; completion: number; avgTime: string; nps: number }
@@ -80,12 +83,16 @@ function loadDb(): LocalDb {
     const raw = localStorage.getItem(DB_KEY)
     if (raw) {
       const db = JSON.parse(raw) as LocalDb
-      if (db.workspaces && db.forms) return db
+      if (db.workspaces && db.forms) {
+          if (!Array.isArray(db.customTemplates)) db.customTemplates = []
+          return db
+        }
     }
   } catch {
     /* fall through to seed */
   }
   const seeded = buildSeedDb() as unknown as LocalDb
+  if (!Array.isArray(seeded.customTemplates)) seeded.customTemplates = []
   localStorage.setItem(DB_KEY, JSON.stringify(seeded))
   return seeded
 }
@@ -573,6 +580,145 @@ export const localBackend = {
 
   reset() {
     localStorage.removeItem(DB_KEY)
+  },
+
+  /* ---- custom templates (per-business + global) ---- */
+  getTemplates(): Promise<CustomTemplate[]> {
+    const db = loadDb()
+    const ws = resolveWorkspace(db, { create: true })
+    const list = db.customTemplates.filter(
+      (tpl) => tpl.scope === 'global' || tpl.workspaceId === ws.id,
+    )
+    return delay(list)
+  },
+
+  createTemplate(input: {
+    name: string
+    description?: string
+    icon?: string
+    category?: string
+    fields: FormField[]
+    scope?: TemplateScope
+  }): Promise<CustomTemplate> {
+    const db = loadDb()
+    const ws = resolveWorkspace(db, { create: true })
+    const scope: TemplateScope = input.scope === 'global' ? 'global' : 'workspace'
+    const now = new Date().toISOString()
+    const tpl: CustomTemplate = {
+      id: rid('tpl'),
+      workspaceId: scope === 'global' ? null : ws.id,
+      scope,
+      name: input.name,
+      description: input.description ?? '',
+      icon: input.icon ?? 'file',
+      category: input.category ?? 'כללי',
+      fields: input.fields,
+      createdAt: now,
+      updatedAt: now,
+    }
+    db.customTemplates.push(tpl)
+    saveDb(db)
+    return delay(tpl)
+  },
+
+  updateTemplate(id: string, patch: Partial<CustomTemplate>): Promise<CustomTemplate> {
+    const db = loadDb()
+    const tpl = db.customTemplates.find((t) => t.id === id)
+    if (!tpl) throw new Error('template not found')
+    Object.assign(tpl, patch, { id: tpl.id, updatedAt: new Date().toISOString() })
+    saveDb(db)
+    return delay(tpl)
+  },
+
+  deleteTemplate(id: string): Promise<{ ok: boolean }> {
+    const db = loadDb()
+    const before = db.customTemplates.length
+    db.customTemplates = db.customTemplates.filter((t) => t.id !== id)
+    saveDb(db)
+    return delay({ ok: db.customTemplates.length < before })
+  },
+
+  duplicateTemplate(id: string): Promise<CustomTemplate> {
+    const db = loadDb()
+    const ws = resolveWorkspace(db, { create: true })
+    const src = db.customTemplates.find((t) => t.id === id)
+    if (!src) throw new Error('template not found')
+    const now = new Date().toISOString()
+    const copy: CustomTemplate = {
+      ...src,
+      id: rid('tpl'),
+      workspaceId: ws.id,
+      scope: 'workspace',
+      name: src.name + ' (עותק)',
+      createdAt: now,
+      updatedAt: now,
+    }
+    db.customTemplates.push(copy)
+    saveDb(db)
+    return delay(copy)
+  },
+
+  /* ---- businesses / workspaces ---- */
+  getWorkspaces(): Promise<Workspace[]> {
+    const db = loadDb()
+    const user = currentUser()
+    const mine = db.workspaces.filter(
+      (w) => w.ownerEmail === user.email || w.members.includes(user.email),
+    )
+    if (mine.length === 0) {
+      const ws = resolveWorkspace(db, { create: true })
+      return delay([ws])
+    }
+    return delay(mine)
+  },
+
+  createWorkspace(input: { name: string; businessName?: string }): Promise<Workspace> {
+    const db = loadDb()
+    const user = currentUser()
+    const ws: Workspace = {
+      id: rid('ws'),
+      name: input.name,
+      ownerEmail: user.email,
+      ownerName: user.name,
+      members: [user.email],
+      createdAt: new Date().toISOString(),
+      businessName: input.businessName ?? input.name,
+    }
+    db.workspaces.push(ws)
+    saveDb(db)
+    return delay(ws)
+  },
+
+  updateWorkspaceById(id: string, patch: Partial<Workspace>): Promise<Workspace> {
+    const db = loadDb()
+    const ws = db.workspaces.find((w) => w.id === id)
+    if (!ws) throw new Error('workspace not found')
+    Object.assign(ws, patch, { id: ws.id })
+    saveDb(db)
+    return delay(ws)
+  },
+
+  deleteWorkspace(id: string): Promise<{ ok: boolean }> {
+    const db = loadDb()
+    const user = currentUser()
+    const owned = db.workspaces.filter(
+      (w) => w.ownerEmail === user.email || w.members.includes(user.email),
+    )
+    if (owned.length <= 1) throw new Error('cannot delete the last business')
+    db.workspaces = db.workspaces.filter((w) => w.id !== id)
+    db.forms = db.forms.filter((f) => f.workspaceId !== id)
+    db.customTemplates = db.customTemplates.filter((t) => t.workspaceId !== id)
+    saveDb(db)
+    return delay({ ok: true })
+  },
+
+  assignFormToWorkspace(formId: string, workspaceId: string): Promise<{ ok: boolean }> {
+    const db = loadDb()
+    const form = db.forms.find((f) => f.id === formId)
+    if (!form) throw new Error('form not found')
+    form.workspaceId = workspaceId
+    saveDb(db)
+    return delay({ ok: true })
   },
 }
 
