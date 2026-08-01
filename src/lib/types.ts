@@ -204,3 +204,18 @@ export interface FormDoc {
   webhooks: WebhookConfig[]
   settings: FormSettings
 }
+
+export type TemplateScope = 'workspace' | 'global'
+
+export interface CustomTemplate {
+  id: string
+  workspaceId: string | null
+  scope: TemplateScope
+  name: string
+  description: string
+  icon: string
+  category: string
+  fields: FormField[]
+  createdAt: string
+  updatedAt: string
+}
