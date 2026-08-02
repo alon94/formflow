@@ -16,6 +16,7 @@ import './styles/design.css'
 import './styles/public.css'
 import './styles/extras.css'
 import './styles/flows.css'
+import './styles/custom-templates.css'
 
 const queryClient = new QueryClient({
   defaultOptions: {
