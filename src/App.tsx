@@ -12,7 +12,9 @@ import OnboardingScreen from './screens/OnboardingScreen'
 import NotificationsScreen from './screens/NotificationsScreen'
 import PublicFormScreen from './screens/PublicFormScreen'
 import ResponsesScreen from './screens/ResponsesScreen'
+import TemplateBuilderScreen from './screens/TemplateBuilderScreen'
 import TemplatesScreen from './screens/TemplatesScreen'
+import WorkspacesScreen from './screens/WorkspacesScreen'
 
 /* clear customer separation: the admin area requires a signed-in user (spec ch.3) */
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -65,6 +67,22 @@ export default function App() {
         element={
           <RequireAuth>
             <TemplatesScreen />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/templates/new"
+        element={
+          <RequireAuth>
+            <TemplateBuilderScreen />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/workspaces"
+        element={
+          <RequireAuth>
+            <WorkspacesScreen />
           </RequireAuth>
         }
       />

@@ -97,6 +97,7 @@ interface HomeTopbarProps {
 }
 
 export default function AdminTopbar({ search, onSearch, searchPlaceholder }: HomeTopbarProps) {
+  const { workspaces, activeWorkspaceId, switchWorkspace } = useStore()
   return (
     <header className="topbar">
       <NavLink to="/" aria-label="FormFlow — דף הבית">
@@ -112,11 +113,26 @@ export default function AdminTopbar({ search, onSearch, searchPlaceholder }: Hom
         <NavLink to="/integrations" className={({ isActive }) => (isActive ? 'active' : '')}>
           אינטגרציות
         </NavLink>
-        <a href="#" onClick={(e) => e.preventDefault()}>
-          הגדרות Workspace
-        </a>
+        <NavLink to="/workspaces" className={({ isActive }) => (isActive ? 'active' : '')}>
+          העסקים שלי
+        </NavLink>
       </nav>
       <div className="topbar-end">
+        {workspaces.length > 0 && (
+          <select
+            className="biz-switcher"
+            value={activeWorkspaceId ?? ''}
+            onChange={(e) => switchWorkspace(e.target.value)}
+            aria-label="בחירת עסק"
+            title="העסק הפעיל"
+          >
+            {workspaces.map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.businessName || w.name}
+              </option>
+            ))}
+          </select>
+        )}
         <label className="search-pill topbar-search">
           <Search size={15} aria-hidden="true" />
           <input

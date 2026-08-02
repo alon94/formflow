@@ -1,5 +1,5 @@
 /**
- * FormFlow API server — multi-tenant edition.
+ * FormFlow API server â multi-tenant edition.
  * Workspaces (customers) are resolved from the authenticated user's email;
  * every admin route is scoped to the caller's workspace, public routes
  * (form rendering + submit + SSE) are open by design.
@@ -48,13 +48,13 @@ function deriveIdentity(fields, values) {
   let name = `${first} ${last}`.trim()
   if (!name) {
     const texts = fields.filter((f) => f.type === 'short_text').slice(0, 2)
-    name = texts.map((f) => values[f.fieldKey] ?? '').join(' ').trim() || 'ממלא/ת אנונימי/ת'
+    name = texts.map((f) => values[f.fieldKey] ?? '').join(' ').trim() || '××××/×ª ×× ×× ×××/×ª'
   }
   const email = byType('email') ? (values[byType('email').fieldKey] ?? '') : ''
   const trackField =
     fields.find((f) => f.fieldKey === 'track') ??
     fields.find((f) => f.type === 'radio' && (f.options?.length ?? 0) >= 3)
-  const track = trackField ? (values[trackField.fieldKey] ?? '—') : '—'
+  const track = trackField ? (values[trackField.fieldKey] ?? 'â') : 'â'
   return { name, email, track }
 }
 
@@ -83,7 +83,7 @@ function deliverWebhooks(form, event, submission) {
 function slugify(name) {
   const base = name
     .toLowerCase()
-    .replace(/[^a-z0-9֐-׿]+/g, '-')
+    .replace(/[^a-z0-9Ö-×¿]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 40)
   return `${base || 'form'}-${Math.random().toString(36).slice(2, 6)}`
@@ -95,7 +95,7 @@ const filterParams = (req) => ({
   status: (req.query.status ?? 'all').toString(),
 })
 
-const BASELINE_TRACKS = { 'מוצר וניהול': 55, 'פיתוח והנדסה': 37, 'עיצוב ו-UX': 28 }
+const BASELINE_TRACKS = { '×××¦×¨ ×× ××××': 55, '×¤××ª×× ××× ××¡×': 37, '×¢××¦×× ×-UX': 28 }
 const BASE_TIMELINE = [3, 5, 8, 7, 9, 12, 11, 8, 6, 9, 12, 15, 13, 11, 14, 18]
 
 /* ---------- app ---------- */
@@ -133,7 +133,7 @@ api.post('/auth/session', (req, res) => {
   if (!ws) {
     ws = store.createWorkspace({
       id: `ws-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      name: `ה-Workspace של ${name}`,
+      name: `×-Workspace ×©× ${name}`,
       ownerEmail: email,
       ownerName: name,
       members: [email],
@@ -149,6 +149,123 @@ api.patch('/workspaces/current', requireAuth, (req, res) => {
   res.json(updated ?? req.workspace)
 })
 
+/* ---- workspaces (multi-business per user) ---- */
+api.get('/workspaces', requireAuth, (req, res) => {
+  const email = req.workspace.ownerEmail
+  const list = store.listWorkspacesForEmail
+    ? store.listWorkspacesForEmail(email)
+    : [req.workspace]
+  res.json(list)
+})
+
+api.post('/workspaces', requireAuth, (req, res) => {
+  const { name, businessName, phone, domain, goal, website } = req.body ?? {}
+  const label = (name ?? businessName ?? '').toString().trim()
+  if (!label) return res.status(400).json({ error: 'name required' })
+  const email = req.workspace.ownerEmail
+  const ws = store.createWorkspace({
+    id: `ws-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    name: label,
+    ownerEmail: email,
+    ownerName: req.workspace.ownerName ?? email,
+    members: [email],
+    createdAt: new Date().toISOString(),
+  })
+  if (businessName || phone || domain || goal || website) {
+    store.updateWorkspace(ws.id, { businessName, phone, domain, goal, website })
+  }
+  res.status(201).json(store.getWorkspace ? store.getWorkspace(ws.id) : ws)
+})
+
+function requireOwnedWorkspace(req, res, next) {
+  const target = store.getWorkspace ? store.getWorkspace(req.params.id) : null
+  const email = req.workspace.ownerEmail
+  if (!target || (target.ownerEmail !== email && !target.members?.includes(email))) {
+    return res.status(404).json({ error: 'workspace not found' })
+  }
+  req.targetWorkspace = target
+  next()
+}
+
+api.patch('/workspaces/:id', requireAuth, requireOwnedWorkspace, (req, res) => {
+  const updated = store.updateWorkspace(req.params.id, req.body ?? {})
+  res.json(updated ?? req.targetWorkspace)
+})
+
+api.delete('/workspaces/:id', requireAuth, requireOwnedWorkspace, (req, res) => {
+  if (!store.deleteWorkspace) return res.status(501).json({ error: 'not supported' })
+  const ok = store.deleteWorkspace(req.params.id)
+  if (!ok) return res.status(404).json({ error: 'workspace not found' })
+  res.status(204).end()
+})
+
+/* ---- custom templates (per-business + global) ---- */
+function templateScope(req) {
+  return req.workspace.id
+}
+
+api.get('/templates', requireAuth, (req, res) => {
+  res.json(store.listTemplates(templateScope(req)))
+})
+
+api.post('/templates', requireAuth, (req, res) => {
+  const { name, description, icon, category, scope, fields } = req.body ?? {}
+  if (!name || !Array.isArray(fields)) {
+    return res.status(400).json({ error: 'name and fields required' })
+  }
+  const now = new Date().toISOString()
+  const tpl = store.createTemplate({
+    id: `tpl-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    workspaceId: scope === 'global' ? null : req.workspace.id,
+    scope: scope === 'global' ? 'global' : 'workspace',
+    name,
+    description: description ?? '',
+    icon: icon ?? 'file',
+    category: category ?? '',
+    fields,
+    createdAt: now,
+    updatedAt: now,
+  })
+  res.status(201).json(tpl)
+})
+
+function requireTemplate(req, res, next) {
+  const tpl = store.getTemplate(req.params.id)
+  const scoped = tpl && (tpl.scope === 'global' || tpl.workspaceId === req.workspace.id)
+  if (!scoped) return res.status(404).json({ error: 'template not found' })
+  req.template = tpl
+  next()
+}
+
+api.patch('/templates/:id', requireAuth, requireTemplate, (req, res) => {
+  const updated = store.updateTemplate(req.params.id, req.body ?? {})
+  res.json(updated ?? req.template)
+})
+
+api.delete('/templates/:id', requireAuth, requireTemplate, (req, res) => {
+  const ok = store.deleteTemplate(req.params.id)
+  if (!ok) return res.status(404).json({ error: 'template not found' })
+  res.status(204).end()
+})
+
+api.post('/templates/:id/duplicate', requireAuth, requireTemplate, (req, res) => {
+  const src = req.template
+  const now = new Date().toISOString()
+  const copy = store.createTemplate({
+    id: `tpl-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    workspaceId: req.workspace.id,
+    scope: 'workspace',
+    name: (req.body?.name ?? `${src.name} (עותק)`).toString(),
+    description: src.description ?? '',
+    icon: src.icon ?? 'file',
+    category: src.category ?? '',
+    fields: src.fields ?? [],
+    createdAt: now,
+    updatedAt: now,
+  })
+  res.status(201).json(copy)
+})
+
 /* ---- forms (workspace-scoped) ---- */
 api.get('/forms', requireAuth, (req, res) => {
   const forms = store.listForms(req.workspace.id).map((form) => {
@@ -158,7 +275,7 @@ api.get('/forms', requireAuth, (req, res) => {
       id: form.id,
       slug: form.slug,
       name: form.name,
-      folder: form.folder ?? 'כללי',
+      folder: form.folder ?? '××××',
       icon: form.icon ?? 'file',
       status: form.status,
       version: form.version,
@@ -178,7 +295,7 @@ api.post('/forms', requireAuth, (req, res) => {
     workspaceId: req.workspace.id,
     slug: slugify(name),
     name,
-    folder: folder ?? 'כללי',
+    folder: folder ?? '××××',
     icon: icon ?? 'file',
     status: 'draft',
     version: 1,
@@ -219,6 +336,19 @@ api.delete('/forms/:id', requireAuth, requireForm, (req, res) => {
   const withSubmissions = req.query.records === 'true'
   store.deleteForm(req.form.id, { withSubmissions })
   res.json({ ok: true, deletedRecords: withSubmissions })
+})
+
+/* assign an existing form to another business (workspace) owned by the caller */
+api.patch('/forms/:id/workspace', requireAuth, requireForm, (req, res) => {
+  const targetId = (req.body?.workspaceId ?? '').toString()
+  const email = req.workspace.ownerEmail
+  const target = store.getWorkspace ? store.getWorkspace(targetId) : null
+  if (!target || (target.ownerEmail !== email && !target.members?.includes(email))) {
+    return res.status(404).json({ error: 'workspace not found' })
+  }
+  const form = { ...req.form, workspaceId: targetId }
+  store.saveForm(form)
+  res.json({ id: form.id, workspaceId: targetId })
 })
 
 api.post('/forms/:id/publish', requireAuth, requireForm, (req, res) => {
@@ -291,7 +421,7 @@ api.delete('/submissions/:id', requireAuth, (req, res) => {
   res.json({ ok: true })
 })
 
-/* public submit — server-side validation is the source of truth (spec §4.2, §8.2) */
+/* public submit â server-side validation is the source of truth (spec Â§4.2, Â§8.2) */
 api.post('/forms/:id/submissions', (req, res) => {
   const form = store.getForm(req.params.id)
   if (!form || form.status === 'closed') return res.status(404).json({ error: 'form not found' })
@@ -306,7 +436,7 @@ api.post('/forms/:id/submissions', (req, res) => {
     if (!field.unique || errors[field.fieldKey]) continue
     const v = String(values[field.fieldKey] ?? '').trim()
     if (v && store.hasValue(form.id, field.fieldKey, v)) {
-      errors[field.fieldKey] = 'הערך כבר נשלח בעבר בטופס זה'
+      errors[field.fieldKey] = '××¢×¨× ×××¨ × ×©×× ××¢××¨ ××××¤×¡ ××'
     }
   }
 
@@ -344,11 +474,11 @@ api.post('/forms/:id/submissions', (req, res) => {
     created.push(entry)
   }
   const notif = form.notif ?? {}
-  if (notif.confirmEnabled && identity.email) notify('email', identity.email, 'מייל אישור לממלא')
+  if (notif.confirmEnabled && identity.email) notify('email', identity.email, '×××× ×××©××¨ ×××××')
   if (notif.ownerEnabled) {
     const recipients = [...new Set([...(notif.recipients ?? []), ...routes])]
     for (const r of recipients) {
-      notify('email', r, routes.includes(r) ? 'ניתוב לפי כלל לוגיקה' : 'מייל התראה לבעל הטופס')
+      notify('email', r, routes.includes(r) ? '× ××ª×× ××¤× ××× ×××××§×' : '×××× ××ª×¨×× ×××¢× ××××¤×¡')
     }
   }
 
@@ -376,7 +506,7 @@ api.get('/forms/:id/analytics', requireAuth, requireForm, (req, res) => {
       if (track in trackCounts) trackCounts[track] += c
     }
     const trackTotal = Object.values(trackCounts).reduce((a, b) => a + b, 0)
-    const names = { 'מוצר וניהול': 'מוצר וניהול', 'פיתוח והנדסה': 'פיתוח', 'עיצוב ו-UX': 'עיצוב' }
+    const names = { '×××¦×¨ ×× ××××': '×××¦×¨ ×× ××××', '×¤××ª×× ××× ××¡×': '×¤××ª××', '×¢××¦×× ×-UX': '×¢××¦××' }
     let acc = 0
     const split = Object.entries(trackCounts).map(([k, v], i, arr) => {
       let pct
@@ -393,20 +523,20 @@ api.get('/forms/:id/analytics', requireAuth, requireForm, (req, res) => {
       completion: baseline.completion,
       avgTime: baseline.avgTime,
       nps: baseline.nps,
-      topSource: { name: 'וואטסאפ', share: 44 },
+      topSource: { name: '×××××¡××¤', share: 44 },
       timeline: {
         day: timeline,
         week: [
-          { label: 'שבוע 1', value: 22 },
-          { label: 'שבוע 2', value: 35 },
-          { label: 'שבוע 3', value: 41 },
-          { label: 'שבוע 4', value: 30 + Math.max(0, liveCount) },
+          { label: '×©×××¢ 1', value: 22 },
+          { label: '×©×××¢ 2', value: 35 },
+          { label: '×©×××¢ 3', value: 41 },
+          { label: '×©×××¢ 4', value: 30 + Math.max(0, liveCount) },
         ],
         month: [
-          { label: 'אפריל', value: 14 },
-          { label: 'מאי', value: 48 },
-          { label: 'יוני', value: 66 },
-          { label: 'יולי', value: total },
+          { label: '××¤×¨××', value: 14 },
+          { label: '×××', value: 48 },
+          { label: '××× ×', value: 66 },
+          { label: '××××', value: total },
         ],
       },
       trackSplit: split,
@@ -432,7 +562,7 @@ api.get('/forms/:id/analytics', requireAuth, requireForm, (req, res) => {
     })
   }
   const today = daily[new Date().toISOString().slice(0, 10)] ?? 0
-  const tracks = Object.entries(store.trackCounts(form.id)).filter(([k]) => k !== '—')
+  const tracks = Object.entries(store.trackCounts(form.id)).filter(([k]) => k !== 'â')
   const trackTotal = tracks.reduce((a, [, c]) => a + c, 0)
   const split =
     trackTotal > 0
@@ -447,7 +577,7 @@ api.get('/forms/:id/analytics', requireAuth, requireForm, (req, res) => {
     completion: null,
     avgTime: null,
     nps: null,
-    topSource: { name: 'קישור ישיר', share: 100 },
+    topSource: { name: '×§××©××¨ ××©××¨', share: 100 },
     timeline: {
       day: dayLabels,
       week: [],
@@ -462,11 +592,11 @@ api.get('/forms/:id/analytics', requireAuth, requireForm, (req, res) => {
 api.get('/forms/:id/export', requireAuth, requireForm, async (req, res) => {
   const form = req.form
   const items = store.listSubmissions(form.id, filterParams(req))
-  const statusLabel = { new: 'חדש', in_progress: 'בטיפול', done: 'טופל' }
+  const statusLabel = { new: '×××©', in_progress: '××××¤××', done: '×××¤×' }
   const fields = form.fields
 
   if (req.query.format === 'csv') {
-    const header = ['#', 'שם מלא', 'מייל', ...fields.map((f) => f.label), 'תגיות', 'סטטוס', 'נשלח']
+    const header = ['#', '×©× ×××', '××××', ...fields.map((f) => f.label), '×ª××××ª', '×¡××××¡', '× ×©××']
     const rows = items.map((s) => [
       s.id,
       s.name,
@@ -481,19 +611,19 @@ api.get('/forms/:id/export', requireAuth, requireForm, async (req, res) => {
       .join('\r\n')
     res.setHeader('Content-Type', 'text/csv; charset=utf-8')
     res.setHeader('Content-Disposition', 'attachment; filename="formflow-responses.csv"')
-    return res.send('﻿' + csv)
+    return res.send('ï»¿' + csv)
   }
 
   const wb = new ExcelJS.Workbook()
-  const ws = wb.addWorksheet('תשובות', { views: [{ rightToLeft: true }] })
+  const ws = wb.addWorksheet('×ª×©××××ª', { views: [{ rightToLeft: true }] })
   ws.columns = [
     { header: '#', key: 'id', width: 8 },
-    { header: 'שם מלא', key: 'name', width: 18 },
-    { header: 'מייל', key: 'email', width: 26 },
+    { header: '×©× ×××', key: 'name', width: 18 },
+    { header: '××××', key: 'email', width: 26 },
     ...fields.map((f) => ({ header: f.label, key: f.fieldKey, width: 22 })),
-    { header: 'תגיות', key: 'tags', width: 14 },
-    { header: 'סטטוס', key: 'status', width: 10 },
-    { header: 'נשלח', key: 'submittedAt', width: 22 },
+    { header: '×ª××××ª', key: 'tags', width: 14 },
+    { header: '×¡××××¡', key: 'status', width: 10 },
+    { header: '× ×©××', key: 'submittedAt', width: 22 },
   ]
   const head = ws.getRow(1)
   head.font = { bold: true, color: { argb: 'FFFFFFFF' }, name: 'Arial' }
@@ -544,22 +674,22 @@ api.post('/notifications/test', requireAuth, (req, res) => {
     id: `ntf-test-${Date.now()}`,
     submissionId: null,
     channel,
-    recipient: channel === 'email' ? req.workspace.ownerEmail : '050-•••0000',
+    recipient: channel === 'email' ? req.workspace.ownerEmail : '050-â¢â¢â¢0000',
     status: 'delivered',
-    note: 'שליחת בדיקה',
+    note: '×©××××ª ××××§×',
     at: new Date().toISOString(),
   }
   store.insertNotification(entry)
   res.status(201).json(entry)
 })
 
-/* dev helper — reset to seed state (used by the E2E suite) */
+/* dev helper â reset to seed state (used by the E2E suite) */
 api.post('/__reset', (_req, res) => {
   store.reset()
   res.json({ ok: true, store: store.kind })
 })
 
-/* SSE — public per-form stream */
+/* SSE â public per-form stream */
 api.get('/forms/:id/events', (req, res) => {
   const form = store.getForm(req.params.id)
   if (!form) return res.status(404).end()

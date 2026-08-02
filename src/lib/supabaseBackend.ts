@@ -19,6 +19,8 @@ import type {
   Submission,
   SubmissionDetail,
   WebhookLog,
+  CustomTemplate,
+  TemplateScope,
 } from './types'
 import type { FormListItem, NewFormInput, PublicFormDoc, SessionInfo } from './api'
 import { SubmitValidationError } from './api'
@@ -213,6 +215,63 @@ async function saveFormRow(id: string, patch: Partial<Pick<FormRow, 'slug' | 'ti
 const sessionNotifications: NotificationEntry[] = []
 
 /* ---------- backend ---------- */
+
+type Workspace = SessionInfo['workspace']
+
+interface ClientMeta {
+  ownerName?: string
+  businessName?: string
+  phone?: string
+  domain?: string
+  goal?: string
+  customTemplates?: CustomTemplate[]
+  [key: string]: unknown
+}
+
+interface ClientRow {
+  id: string
+  name: string
+  contact_email: string | null
+  meta: ClientMeta | null
+  created_at: string
+}
+
+function rowToWorkspace(row: ClientRow): Workspace {
+  const meta = row.meta ?? {}
+  return {
+    id: row.id,
+    name: row.name,
+    ownerEmail: row.contact_email ?? '',
+    ownerName: meta.ownerName ?? '',
+    businessName: meta.businessName,
+    phone: meta.phone,
+    domain: meta.domain,
+    goal: meta.goal,
+  }
+}
+
+async function appendTemplate(clientId: string, tpl: CustomTemplate): Promise<void> {
+  const { data, error } = await supabase.from('clients').select('meta').eq('id', clientId).single()
+  if (error) throw new Error(error.message)
+  const meta = ((data as { meta: ClientMeta | null }).meta ?? {}) as ClientMeta
+  const list = [...(meta.customTemplates ?? []), tpl]
+  const { error: uErr } = await supabase
+    .from('clients')
+    .update({ meta: { ...meta, customTemplates: list } })
+    .eq('id', clientId)
+  if (uErr) throw new Error(uErr.message)
+}
+
+async function findTemplate(id: string): Promise<{ rowId: string; meta: ClientMeta; tpl: CustomTemplate }> {
+  const { data, error } = await supabase.from('clients').select('id, meta')
+  if (error) throw new Error(error.message)
+  for (const row of (data ?? []) as { id: string; meta: ClientMeta | null }[]) {
+    const meta = (row.meta ?? {}) as ClientMeta
+    const tpl = (meta.customTemplates ?? []).find((t) => t.id === id)
+    if (tpl) return { rowId: row.id, meta, tpl }
+  }
+  throw new Error('template not found')
+}
 
 export const supabaseBackend = {
   async createSession(email: string, name: string): Promise<SessionInfo> {
@@ -604,6 +663,157 @@ export const supabaseBackend = {
       recipient: channel === 'email' ? ws.ownerEmail : '050-•••0000',
       status: 'delivered', note: 'שליחת בדיקה', at: new Date().toISOString(),
     }
+  },
+
+  /* ---------- businesses / workspaces ---------- */
+
+  async getWorkspaces(): Promise<Workspace[]> {
+    await requireUserId()
+    const { data, error } = await supabase
+      .from('clients')
+      .select('id, name, contact_email, meta, created_at')
+      .order('created_at', { ascending: true })
+    if (error) throw new Error(error.message)
+    const rows = (data ?? []) as ClientRow[]
+    if (rows.length === 0) return [await resolveWorkspace({ create: true })]
+    return rows.map(rowToWorkspace)
+  },
+
+  async createWorkspace(input: { name: string; businessName?: string }): Promise<Workspace> {
+    const uid = await requireUserId()
+    const meta: ClientMeta = {}
+    if (input.businessName) meta.businessName = input.businessName
+    const { data, error } = await supabase
+      .from('clients')
+      .insert({ name: input.name, meta })
+      .select('id, name, contact_email, meta, created_at')
+      .single()
+    if (error) throw new Error(error.message)
+    await supabase.from('client_members').insert({ client_id: data.id, user_id: uid })
+    return rowToWorkspace(data as ClientRow)
+  },
+
+  async updateWorkspaceById(id: string, patch: Partial<Workspace>): Promise<Workspace> {
+    const { data: existing, error: readErr } = await supabase
+      .from('clients')
+      .select('id, name, contact_email, meta, created_at')
+      .eq('id', id)
+      .single()
+    if (readErr) throw new Error(readErr.message)
+    const row = existing as ClientRow
+    const meta: ClientMeta = { ...(row.meta ?? {}) }
+    for (const key of ['ownerName', 'businessName', 'phone', 'domain', 'goal'] as const) {
+      if (patch[key] !== undefined) meta[key] = patch[key]
+    }
+    const update: Record<string, unknown> = { meta }
+    if (patch.name !== undefined) update.name = patch.name
+    const { data, error } = await supabase
+      .from('clients')
+      .update(update)
+      .eq('id', id)
+      .select('id, name, contact_email, meta, created_at')
+      .single()
+    if (error) throw new Error(error.message)
+    return rowToWorkspace(data as ClientRow)
+  },
+
+  async deleteWorkspace(id: string): Promise<{ ok: boolean }> {
+    const { count } = await supabase
+      .from('clients')
+      .select('id', { count: 'exact', head: true })
+    if ((count ?? 0) <= 1) throw new Error('לא ניתן למחוק את העסק היחיד')
+    const { error } = await supabase.from('clients').delete().eq('id', id)
+    if (error) throw new Error(error.message)
+    return { ok: true }
+  },
+
+  async assignFormToWorkspace(formId: string, workspaceId: string): Promise<{ ok: boolean }> {
+    const { error } = await supabase.from('forms').update({ client_id: workspaceId }).eq('id', formId)
+    if (error) throw new Error(error.message)
+    return { ok: true }
+  },
+
+  /* ---------- custom templates (stored in workspace meta) ---------- */
+
+  async getTemplates(): Promise<CustomTemplate[]> {
+    const ws = await resolveWorkspace({ create: true })
+    const { data, error } = await supabase.from('clients').select('id, meta')
+    if (error) throw new Error(error.message)
+    const all: CustomTemplate[] = []
+    for (const row of (data ?? []) as { id: string; meta: ClientMeta | null }[]) {
+      const list = (row.meta?.customTemplates ?? []) as CustomTemplate[]
+      for (const tpl of list) {
+        if (tpl.scope === 'global' || row.id === ws.id) all.push(tpl)
+      }
+    }
+    return all
+  },
+
+  async createTemplate(input: {
+    name: string
+    description?: string
+    icon?: string
+    category?: string
+    fields: FormField[]
+    scope?: TemplateScope
+  }): Promise<CustomTemplate> {
+    const ws = await resolveWorkspace({ create: true })
+    const now = new Date().toISOString()
+    const scope: TemplateScope = input.scope ?? 'workspace'
+    const tpl: CustomTemplate = {
+      id: rid('tpl'),
+      workspaceId: scope === 'global' ? null : ws.id,
+      scope,
+      name: input.name,
+      description: input.description ?? '',
+      icon: input.icon ?? 'file',
+      category: input.category ?? 'כללי',
+      fields: input.fields,
+      createdAt: now,
+      updatedAt: now,
+    }
+    await appendTemplate(ws.id, tpl)
+    return tpl
+  },
+
+  async updateTemplate(id: string, patch: Partial<CustomTemplate>): Promise<CustomTemplate> {
+    const { rowId, meta, tpl } = await findTemplate(id)
+    const updated: CustomTemplate = { ...tpl, ...patch, id: tpl.id, updatedAt: new Date().toISOString() }
+    const list = (meta.customTemplates ?? []).map((t) => (t.id === id ? updated : t))
+    const { error } = await supabase
+      .from('clients')
+      .update({ meta: { ...meta, customTemplates: list } })
+      .eq('id', rowId)
+    if (error) throw new Error(error.message)
+    return updated
+  },
+
+  async deleteTemplate(id: string): Promise<{ ok: boolean }> {
+    const { rowId, meta } = await findTemplate(id)
+    const list = (meta.customTemplates ?? []).filter((t) => t.id !== id)
+    const { error } = await supabase
+      .from('clients')
+      .update({ meta: { ...meta, customTemplates: list } })
+      .eq('id', rowId)
+    if (error) throw new Error(error.message)
+    return { ok: true }
+  },
+
+  async duplicateTemplate(id: string): Promise<CustomTemplate> {
+    const ws = await resolveWorkspace({ create: true })
+    const { tpl } = await findTemplate(id)
+    const now = new Date().toISOString()
+    const copy: CustomTemplate = {
+      ...tpl,
+      id: rid('tpl'),
+      workspaceId: ws.id,
+      scope: 'workspace',
+      name: tpl.name + ' (עותק)',
+      createdAt: now,
+      updatedAt: now,
+    }
+    await appendTemplate(ws.id, copy)
+    return copy
   },
 }
 

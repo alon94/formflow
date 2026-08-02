@@ -38,6 +38,17 @@ export interface AppUser {
   email: string
 }
 
+export interface WorkspaceInfo {
+  id: string
+  name: string
+  ownerEmail: string
+  ownerName: string
+  businessName?: string
+  phone?: string
+  domain?: string
+  goal?: string
+}
+
 interface AppStore {
   theme: Theme
   toggleTheme: () => void
@@ -67,6 +78,11 @@ interface AppStore {
   settings: FormSettings
   setSettings: (next: Partial<FormSettings>) => void
   publish: () => Promise<void>
+  workspaces: WorkspaceInfo[]
+  activeWorkspaceId: string | null
+  activeWorkspace: WorkspaceInfo | null
+  refreshWorkspaces: () => Promise<void>
+  switchWorkspace: (id: string) => void
 }
 
 const StoreContext = createContext<AppStore | null>(null)
@@ -74,6 +90,7 @@ const StoreContext = createContext<AppStore | null>(null)
 const THEME_KEY = 'formflow.theme'
 const USER_KEY = 'formflow.user'
 const ONBOARDING_KEY = 'formflow.onboarding-done'
+const ACTIVE_WS_KEY = 'formflow.active-workspace'
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => {
@@ -96,10 +113,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(() => {
     try {
       const raw = localStorage.getItem(USER_KEY)
-      return raw ? (JSON.parse(raw) as AppUser) : null
+      if (raw) return JSON.parse(raw) as AppUser
     } catch {
-      return null
+      /* fall through to dev bypass */
     }
+    /* Dev-only auto-login: skip the login screen during local development so the
+       full admin UI (business switcher, template builder, workspaces) can be
+       explored without seeded credentials. Never active in production builds,
+       where import.meta.env.DEV is false. Opt out with VITE_NO_DEV_LOGIN=1. */
+    if (import.meta.env.DEV && !import.meta.env.VITE_NO_DEV_LOGIN) {
+      const devUser: AppUser = { name: 'Dev User', email: 'dev@formflow.local' }
+      try {
+        localStorage.setItem(USER_KEY, JSON.stringify(devUser))
+      } catch {
+        /* ignore storage errors */
+      }
+      return devUser
+    }
+    return null
   })
   const [onboardingDone, setOnboardingDone] = useState(
     () => localStorage.getItem(ONBOARDING_KEY) === '1',
@@ -109,6 +140,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     document.documentElement.dataset.theme = theme
     localStorage.setItem(THEME_KEY, theme)
   }, [theme])
+
+  /* Dev-only: provision the server session for the auto-login dev user so API
+     calls (workspaces, templates, forms) are authorized. Mirrors what the real
+     login flow does via api.createSession. Runs only in development. */
+  useEffect(() => {
+    if (
+      import.meta.env.DEV &&
+      !import.meta.env.VITE_NO_DEV_LOGIN &&
+      user?.email === 'dev@formflow.local'
+    ) {
+      void api.createSession(user.email, user.name)
+    }
+  }, [user])
 
   const applyDoc = useCallback(
     (doc: {
@@ -278,6 +322,45 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const [workspaces, setWorkspaces] = useState<WorkspaceInfo[]>([])
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(
+    () => localStorage.getItem(ACTIVE_WS_KEY),
+  )
+
+  const refreshWorkspaces = useCallback(async () => {
+    try {
+      const list = (await api.getWorkspaces()) as WorkspaceInfo[]
+      setWorkspaces(list)
+      setActiveWorkspaceId((prev) => {
+        if (prev && list.some((w) => w.id === prev)) return prev
+        const next = list[0]?.id ?? null
+        if (next) localStorage.setItem(ACTIVE_WS_KEY, next)
+        return next
+      })
+    } catch {
+      /* offline / no server — keep current */
+    }
+  }, [])
+
+  const switchWorkspace = useCallback((id: string) => {
+    setActiveWorkspaceId(id)
+    localStorage.setItem(ACTIVE_WS_KEY, id)
+  }, [])
+
+  /* load the businesses this user can access whenever they sign in */
+  useEffect(() => {
+    if (user) void refreshWorkspaces()
+    else {
+      setWorkspaces([])
+      setActiveWorkspaceId(null)
+    }
+  }, [user, refreshWorkspaces])
+
+  const activeWorkspace = useMemo(
+    () => workspaces.find((w) => w.id === activeWorkspaceId) ?? null,
+    [workspaces, activeWorkspaceId],
+  )
+
   const value = useMemo<AppStore>(
     () => ({
       theme,
@@ -308,6 +391,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       settings,
       setSettings,
       publish,
+      workspaces,
+      activeWorkspaceId,
+      activeWorkspace,
+      refreshWorkspaces,
+      switchWorkspace,
     }),
     [
       theme,
@@ -338,6 +426,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       settings,
       setSettings,
       publish,
+      workspaces,
+      activeWorkspaceId,
+      activeWorkspace,
+      refreshWorkspaces,
+      switchWorkspace,
     ],
   )
 

@@ -1,4 +1,6 @@
 import type {
+  CustomTemplate,
+  TemplateScope,
   AnalyticsPayload,
   FormDoc,
   FormField,
@@ -268,5 +270,70 @@ export const api = {
       trigger(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }), 'csv')
     }
   },
+  /* ---- custom templates (per-business + global) ---- */
+  getTemplates: () =>
+    req<CustomTemplate[]>('/templates', undefined, async () => (await lb()).getTemplates()),
+  createTemplate: (input: {
+    name: string
+    description?: string
+    icon?: string
+    category?: string
+    fields: FormField[]
+    scope?: TemplateScope
+  }) =>
+    req<CustomTemplate>(
+      '/templates',
+      { method: 'POST', body: JSON.stringify(input) },
+      async () => (await lb()).createTemplate(input),
+    ),
+  updateTemplate: (id: string, patch: Partial<CustomTemplate>) =>
+    req<CustomTemplate>(
+      `/templates/${id}`,
+      { method: 'PATCH', body: JSON.stringify(patch) },
+      async () => (await lb()).updateTemplate(id, patch),
+    ),
+  deleteTemplate: (id: string) =>
+    req<{ ok: boolean }>(
+      `/templates/${id}`,
+      { method: 'DELETE' },
+      async () => (await lb()).deleteTemplate(id),
+    ),
+  duplicateTemplate: (id: string) =>
+    req<CustomTemplate>(
+      `/templates/${id}/duplicate`,
+      { method: 'POST' },
+      async () => (await lb()).duplicateTemplate(id),
+    ),
+
+  /* ---- businesses / workspaces ---- */
+  getWorkspaces: () =>
+    req<SessionInfo['workspace'][]>('/workspaces', undefined, async () =>
+      (await lb()).getWorkspaces(),
+    ),
+  createWorkspace: (input: { name: string; businessName?: string }) =>
+    req<SessionInfo['workspace']>(
+      '/workspaces',
+      { method: 'POST', body: JSON.stringify(input) },
+      async () => (await lb()).createWorkspace(input),
+    ),
+  updateWorkspaceById: (id: string, patch: WorkspaceProfile) =>
+    req<SessionInfo['workspace']>(
+      `/workspaces/${id}`,
+      { method: 'PATCH', body: JSON.stringify(patch) },
+      async () => (await lb()).updateWorkspaceById(id, patch),
+    ),
+  deleteWorkspace: (id: string) =>
+    req<{ ok: boolean }>(
+      `/workspaces/${id}`,
+      { method: 'DELETE' },
+      async () => (await lb()).deleteWorkspace(id),
+    ),
+  assignFormToWorkspace: (formId: string, workspaceId: string) =>
+    req<{ ok: boolean }>(
+      `/forms/${formId}/workspace`,
+      { method: 'PATCH', body: JSON.stringify({ workspaceId }) },
+      async () => (await lb()).assignFormToWorkspace(formId, workspaceId),
+    ),
+
   eventsUrl: (formId: string) => `${BASE}/forms/${formId}/events`,
 }

@@ -1,12 +1,12 @@
 /**
- * SQLite storage adapter (better-sqlite3) — multi-tenant schema per spec ch.6.
+ * SQLite storage adapter (better-sqlite3) Ã¢ÂÂ multi-tenant schema per spec ch.6.
  * Documents (form docs) are stored as JSON columns; swapping to PostgreSQL 16
  * with JSONB is a mechanical adapter change.
  */
 import Database from 'better-sqlite3'
 import { buildSeedDb } from '../shared/seed.js'
 
-const SCHEMA_VERSION = 4
+const SCHEMA_VERSION = 6
 
 const SCHEMA = `
 CREATE TABLE workspaces (
@@ -18,7 +18,7 @@ CREATE TABLE workspaces (
   profile TEXT NOT NULL DEFAULT '{}',
   created_at TEXT NOT NULL
 );
-CREATE UNIQUE INDEX idx_ws_owner ON workspaces(owner_email);
+CREATE INDEX idx_ws_owner ON workspaces(owner_email);
 CREATE TABLE forms (
   id TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL,
@@ -68,6 +68,19 @@ CREATE TABLE form_versions (
   fields TEXT NOT NULL
 );
 CREATE INDEX idx_versions_form_time ON form_versions(form_id, at DESC);
+CREATE TABLE custom_templates (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT,
+  scope TEXT NOT NULL DEFAULT 'workspace',
+  name TEXT NOT NULL,
+  description TEXT,
+  icon TEXT,
+  category TEXT,
+  fields TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX idx_templates_ws ON custom_templates(workspace_id);
 `
 
 const rowToSubmission = (r) => ({
@@ -94,6 +107,19 @@ const rowToWorkspace = (r) => ({
   ...JSON.parse(r.profile || '{}'),
 })
 
+const rowToTemplate = (r) => ({
+  id: r.id,
+  workspaceId: r.workspace_id ?? null,
+  scope: r.scope,
+  name: r.name,
+  description: r.description ?? '',
+  icon: r.icon ?? 'file',
+  category: r.category ?? '',
+  fields: JSON.parse(r.fields),
+  createdAt: r.created_at,
+  updatedAt: r.updated_at,
+})
+
 export class SqliteStore {
   constructor(path) {
     this.db = new Database(path)
@@ -118,7 +144,7 @@ export class SqliteStore {
   #seed() {
     const seed = buildSeedDb()
     const tx = this.db.transaction(() => {
-      for (const t of ['workspaces', 'forms', 'submissions', 'notifications', 'webhook_logs', 'form_versions']) {
+      for (const t of ['workspaces', 'forms', 'submissions', 'notifications', 'webhook_logs', 'form_versions', 'custom_templates']) {
         this.db.prepare(`DELETE FROM ${t}`).run()
       }
       for (const w of seed.workspaces) {
@@ -296,7 +322,7 @@ export class SqliteStore {
     const rows = this.db
       .prepare('SELECT track, COUNT(*) AS c FROM submissions WHERE form_id = ? GROUP BY track')
       .all(formId)
-    return Object.fromEntries(rows.map((r) => [r.track ?? '—', r.c]))
+    return Object.fromEntries(rows.map((r) => [r.track ?? 'Ã¢ÂÂ', r.c]))
   }
 
   dailyCounts(formId, days) {
@@ -395,6 +421,94 @@ export class SqliteStore {
   getVersion(id) {
     const r = this.db.prepare('SELECT * FROM form_versions WHERE id = ?').get(id)
     return r ? { id: r.id, formId: r.form_id, at: r.at, fields: JSON.parse(r.fields) } : null
+  }
+
+  /* ---- workspaces (multi-business) ---- */
+  listWorkspacesForEmail(email) {
+    return this.db
+      .prepare('SELECT * FROM workspaces')
+      .all()
+      .map(rowToWorkspace)
+      .filter((w) => w.members.includes(email) || w.ownerEmail === email)
+  }
+
+  getWorkspace(id) {
+    const row = this.db.prepare('SELECT * FROM workspaces WHERE id = ?').get(id)
+    return row ? rowToWorkspace(row) : null
+  }
+
+  deleteWorkspace(id) {
+    const info = this.db.prepare('DELETE FROM workspaces WHERE id = ?').run(id)
+    this.db.prepare('DELETE FROM custom_templates WHERE workspace_id = ?').run(id)
+    return info.changes > 0
+  }
+
+  /* ---- custom templates ---- */
+  listTemplates(workspaceId) {
+    return this.db
+      .prepare("SELECT * FROM custom_templates WHERE scope = 'global' OR workspace_id = ?")
+      .all(workspaceId)
+      .map(rowToTemplate)
+  }
+
+  getTemplate(id) {
+    const row = this.db.prepare('SELECT * FROM custom_templates WHERE id = ?').get(id)
+    return row ? rowToTemplate(row) : null
+  }
+
+  createTemplate(tpl) {
+    this.db
+      .prepare(
+        'INSERT INTO custom_templates (id, workspace_id, scope, name, description, icon, category, fields, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      )
+      .run(
+        tpl.id,
+        tpl.workspaceId ?? null,
+        tpl.scope ?? 'workspace',
+        tpl.name,
+        tpl.description ?? '',
+        tpl.icon ?? 'file',
+        tpl.category ?? '',
+        JSON.stringify(tpl.fields ?? []),
+        tpl.createdAt,
+        tpl.updatedAt,
+      )
+    return tpl
+  }
+
+  updateTemplate(id, patch) {
+    const row = this.db.prepare('SELECT * FROM custom_templates WHERE id = ?').get(id)
+    if (!row) return null
+    const current = rowToTemplate(row)
+    const next = {
+      name: patch.name ?? current.name,
+      description: patch.description ?? current.description,
+      icon: patch.icon ?? current.icon,
+      category: patch.category ?? current.category,
+      scope: patch.scope ?? current.scope,
+      fields: patch.fields ?? current.fields,
+      updatedAt: new Date().toISOString(),
+    }
+    this.db
+      .prepare(
+        'UPDATE custom_templates SET name = ?, description = ?, icon = ?, category = ?, scope = ?, fields = ?, updated_at = ? WHERE id = ?',
+      )
+      .run(
+        next.name,
+        next.description,
+        next.icon,
+        next.category,
+        next.scope,
+        JSON.stringify(next.fields),
+        next.updatedAt,
+        id,
+      )
+    return { ...current, ...next }
+  }
+
+  deleteTemplate(id) {
+    const info = this.db.prepare('DELETE FROM custom_templates WHERE id = ?').run(id)
+    return info.changes > 0
   }
 
   reset() {
