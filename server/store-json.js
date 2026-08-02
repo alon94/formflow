@@ -1,4 +1,4 @@
-/** JSON-file storage adapter — fallback when better-sqlite3 isn't available. */
+/** JSON-file storage adapter â fallback when better-sqlite3 isn't available. */
 import fs from 'node:fs'
 import { buildSeedDb } from '../shared/seed.js'
 
@@ -12,6 +12,7 @@ export class JsonStore {
       this.db = buildSeedDb()
       this.#flush()
     }
+    if (!Array.isArray(this.db.customTemplates)) this.db.customTemplates = []
   }
 
   #flush() {
@@ -49,6 +50,24 @@ export class JsonStore {
     }
     this.#flush()
     return ws
+  }
+
+  listWorkspacesForEmail(email) {
+    return this.db.workspaces.filter(
+      (w) => w.members.includes(email) || w.ownerEmail === email,
+    )
+  }
+
+  getWorkspace(id) {
+    return this.db.workspaces.find((w) => w.id === id) ?? null
+  }
+
+  deleteWorkspace(id) {
+    const before = this.db.workspaces.length
+    this.db.workspaces = this.db.workspaces.filter((w) => w.id !== id)
+    this.db.customTemplates = this.db.customTemplates.filter((t) => t.workspaceId !== id)
+    this.#flush()
+    return before !== this.db.workspaces.length
   }
 
   listForms(workspaceId) {
@@ -147,7 +166,7 @@ export class JsonStore {
   trackCounts(formId) {
     const counts = {}
     for (const s of this.db.submissions) {
-      if (s.formId === formId) counts[s.track ?? '—'] = (counts[s.track ?? '—'] ?? 0) + 1
+      if (s.formId === formId) counts[s.track ?? 'â'] = (counts[s.track ?? 'â'] ?? 0) + 1
     }
     return counts
   }
@@ -206,6 +225,41 @@ export class JsonStore {
 
   getVersion(id) {
     return this.db.versions.find((v) => v.id === id) ?? null
+  }
+
+  /* ---- custom templates ---- */
+  listTemplates(workspaceId) {
+    return this.db.customTemplates.filter(
+      (t) => t.scope === 'global' || t.workspaceId === workspaceId,
+    )
+  }
+
+  getTemplate(id) {
+    return this.db.customTemplates.find((t) => t.id === id) ?? null
+  }
+
+  createTemplate(tpl) {
+    this.db.customTemplates.push(tpl)
+    this.#flush()
+    return tpl
+  }
+
+  updateTemplate(id, patch) {
+    const tpl = this.db.customTemplates.find((t) => t.id === id)
+    if (!tpl) return null
+    for (const k of ['name', 'description', 'icon', 'category', 'scope', 'fields']) {
+      if (patch[k] !== undefined) tpl[k] = patch[k]
+    }
+    tpl.updatedAt = new Date().toISOString()
+    this.#flush()
+    return tpl
+  }
+
+  deleteTemplate(id) {
+    const before = this.db.customTemplates.length
+    this.db.customTemplates = this.db.customTemplates.filter((t) => t.id !== id)
+    this.#flush()
+    return before !== this.db.customTemplates.length
   }
 
   reset() {
