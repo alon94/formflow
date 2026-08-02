@@ -118,9 +118,9 @@ export default function TemplateBuilderScreen() {
   const canSave = name.trim().length > 0 && fields.length > 0
 
   return (
-    <div className="app-shell">
+    <div className="admin-shell">
       <AdminTopbar search="" onSearch={() => {}} searchPlaceholder="חיפוש…" />
-      <main className="page-main builder-page" dir="rtl">
+      <main className="page-body builder-page" dir="rtl">
         <div className="builder-head">
           <button type="button" className="ghost-btn" onClick={() => navigate('/templates')}>
             <ArrowRight size={16} /> חזרה לתבניות
