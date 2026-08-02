@@ -141,6 +141,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(THEME_KEY, theme)
   }, [theme])
 
+  /* Dev-only: provision the server session for the auto-login dev user so API
+     calls (workspaces, templates, forms) are authorized. Mirrors what the real
+     login flow does via api.createSession. Runs only in development. */
+  useEffect(() => {
+    if (
+      import.meta.env.DEV &&
+      !import.meta.env.VITE_NO_DEV_LOGIN &&
+      user?.email === 'dev@formflow.local'
+    ) {
+      void api.createSession(user.email, user.name)
+    }
+  }, [user])
+
   const applyDoc = useCallback(
     (doc: {
       id?: string
