@@ -1,12 +1,12 @@
 /**
- * SQLite storage adapter (better-sqlite3) â multi-tenant schema per spec ch.6.
+ * SQLite storage adapter (better-sqlite3) Ã¢ÂÂ multi-tenant schema per spec ch.6.
  * Documents (form docs) are stored as JSON columns; swapping to PostgreSQL 16
  * with JSONB is a mechanical adapter change.
  */
 import Database from 'better-sqlite3'
 import { buildSeedDb } from '../shared/seed.js'
 
-const SCHEMA_VERSION = 5
+const SCHEMA_VERSION = 6
 
 const SCHEMA = `
 CREATE TABLE workspaces (
@@ -18,7 +18,7 @@ CREATE TABLE workspaces (
   profile TEXT NOT NULL DEFAULT '{}',
   created_at TEXT NOT NULL
 );
-CREATE UNIQUE INDEX idx_ws_owner ON workspaces(owner_email);
+CREATE INDEX idx_ws_owner ON workspaces(owner_email);
 CREATE TABLE forms (
   id TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL,
@@ -322,7 +322,7 @@ export class SqliteStore {
     const rows = this.db
       .prepare('SELECT track, COUNT(*) AS c FROM submissions WHERE form_id = ? GROUP BY track')
       .all(formId)
-    return Object.fromEntries(rows.map((r) => [r.track ?? 'â', r.c]))
+    return Object.fromEntries(rows.map((r) => [r.track ?? 'Ã¢ÂÂ', r.c]))
   }
 
   dailyCounts(formId, days) {
