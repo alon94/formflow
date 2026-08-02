@@ -192,7 +192,7 @@ export default function TemplatesScreen() {
             <button
               key={c}
               type="button"
-              className={${category === c ? 'chip-filter active' : 'chip-filter'}}
+              className={category === c ? 'chip-filter active' : 'chip-filter'}
               onClick={() => setCategory(c)}
             >
               {c}
