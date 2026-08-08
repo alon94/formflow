@@ -318,8 +318,10 @@ export default function NewFormWizard() {
         settings: { ...defaultSettings },
       })
       navigate(`/form/${form.id}/build`)
-    } catch {
+    } catch (err) {
       setCreating(false)
+      console.error('Form creation failed', err)
+      alert('יצירת הטופס נכשלה. נסו שוב או פנו לתמיכה.')
     }
   }
 
