@@ -185,6 +185,10 @@ export interface FormSettings {
   maxResponses: string
   onePerUser: boolean
   passwordProtect: boolean
+  thankYouTitle: string
+  thankYouMessage: string
+  redirectUrl: string
+  redirectDelay: string
 }
 
 export interface FormDoc {
