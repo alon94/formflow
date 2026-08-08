@@ -1,24 +1,24 @@
-/** Canonical seed data â single source for the API server and the frontend fallback. */
+/** Canonical seed data — single source for the API server and the frontend fallback. */
 
 export const FORM_ID = 'conf-2026'
 export const FORM_SLUG = 'product-conf-2026'
-export const FORM_NAME = '××¨×©×× ××× ×¡ ××××¦×¨ 2026'
+export const FORM_NAME = 'הרשמה לכנס המוצר 2026'
 
 export const seedFields = [
   {
     id: 'fld-member',
     type: 'radio',
-    label: '×××¨×ª ×××¢××× ×©×××?',
+    label: 'חברת מועדון שווה?',
     required: true,
     fieldKey: 'member',
-    options: ['××, ×××¨× ×××¢×××', '×¢×××× ××'],
+    options: ['כן, חברי מועדון', 'עדיין לא'],
     page: 1,
   },
   {
     id: 'fld-participants',
     type: 'number',
-    label: '××¡×¤×¨ ××©×ª×ª×¤××',
-    placeholder: '×××©×: 2',
+    label: 'מספר משתתפים',
+    placeholder: 'למשל: 2',
     required: true,
     fieldKey: 'participants',
     page: 1,
@@ -26,8 +26,8 @@ export const seedFields = [
   {
     id: 'fld-first',
     type: 'short_text',
-    label: '×©× ×¤×¨××',
-    placeholder: '××©×¨××',
+    label: 'שם פרטי',
+    placeholder: 'ישראל',
     required: true,
     fieldKey: 'first_name',
     half: true,
@@ -36,8 +36,8 @@ export const seedFields = [
   {
     id: 'fld-last',
     type: 'short_text',
-    label: '×©× ××©×¤××',
-    placeholder: '××©×¨×××',
+    label: 'שם משפחה',
+    placeholder: 'ישראלי',
     required: true,
     fieldKey: 'last_name',
     half: true,
@@ -46,39 +46,39 @@ export const seedFields = [
   {
     id: 'fld-email',
     type: 'email',
-    label: '××ª×××ª ××××',
+    label: 'כתובת מייל',
     placeholder: 'name@company.co.il',
-    help: '×××©××¨ ×××¨×©×× ×××©×× ×××ª×××ª ××',
+    help: 'אישור ההרשמה יישלח לכתובת זו',
     required: true,
     unique: true,
-    errorMessage: '× × ××××× ××ª×××ª ×××× ×ª×§×× ×',
+    errorMessage: 'נא להזין כתובת מייל תקינה',
     fieldKey: 'email',
     page: 2,
   },
   {
     id: 'fld-track',
     type: 'radio',
-    label: '××××× ××¡××× ×ª×©×ª×ª×¤×?',
+    label: 'באיזה מסלול תשתתפו?',
     required: true,
     fieldKey: 'track',
-    options: ['×××¦×¨ ×× ××××', '×¤××ª×× ××× ××¡×', '×¢××¦×× ×-UX'],
+    options: ['מוצר וניהול', 'פיתוח והנדסה', 'עיצוב ו-UX'],
     page: 2,
   },
   {
     id: 'fld-workshop',
     type: 'dropdown',
-    label: '××××¨×ª ×¡×× ×ª ×¢××¦××',
-    help: '×××¦× ×¨×§ ×××¡××× ×¢××¦×× ×-UX (××× ×××××§×)',
+    label: 'בחירת סדנת עיצוב',
+    help: 'מוצג רק למסלול עיצוב ו-UX (כלל לוגיקה)',
     required: false,
     fieldKey: 'design_workshop',
-    options: ['Design Systems ××¢××¨××ª', '×××§×¨ ××©×ª××©×× ××××¨', '×¤×¨×××××××¤×× × ×-Figma'],
+    options: ['Design Systems בעברית', 'מחקר משתמשים מהיר', 'פרוטוטייפינג ב-Figma'],
     page: 2,
   },
   {
     id: 'fld-notes',
     type: 'long_text',
-    label: '××¢×¨××ª ×××¢××¤××ª (×××¤×¦××× ××)',
-    placeholder: '× ×××©××ª, ×ª××× ×, ×× ×××¨ ×©× ×¦××¨× ×××¢×ªâ¦',
+    label: 'הערות והעדפות (אופציונלי)',
+    placeholder: 'נגישות, תזונה, כל דבר שנצטרך לדעת…',
     required: false,
     fieldKey: 'notes',
     page: 3,
@@ -86,10 +86,10 @@ export const seedFields = [
   {
     id: 'fld-terms',
     type: 'radio',
-    label: '×××©××¨ ×ª×§× ××',
+    label: 'אישור תקנון',
     required: true,
     fieldKey: 'terms',
-    options: ['×§×¨××ª× ××× × ×××©×¨/×ª ××ª ×ª× ×× ×××©×ª×ª×¤××ª'],
+    options: ['קראתי ואני מאשר/ת את תנאי ההשתתפות'],
     page: 3,
   },
 ]
@@ -97,22 +97,22 @@ export const seedFields = [
 export const seedRules = [
   {
     id: 'rule-1',
-    name: '××¦××ª ×©×××ª ×¡×× × ×××¡××× ×¢××¦××',
+    name: 'הצגת שדות סדנה למסלול עיצוב',
     scope: 'fill',
     enabled: true,
     combinator: 'and',
-    conditions: [{ fieldKey: 'track', op: 'eq', value: '×¢××¦×× ×-UX' }],
+    conditions: [{ fieldKey: 'track', op: 'eq', value: 'עיצוב ו-UX' }],
     actions: [{ type: 'show_field', fieldKey: 'design_workshop' }],
   },
   {
     id: 'rule-2',
-    name: '× ××ª×× ×¤× ×××ª VIP ××××× ×× ×××ª ××××¨××¢',
+    name: 'ניתוב פניות VIP למייל מנהלת האירוע',
     scope: 'submit',
     enabled: true,
     combinator: 'and',
     conditions: [
       { fieldKey: 'participants', op: 'gt', value: '5' },
-      { fieldKey: 'member', op: 'eq', value: '××, ×××¨× ×××¢×××' },
+      { fieldKey: 'member', op: 'eq', value: 'כן, חברי מועדון' },
     ],
     actions: [
       { type: 'route_email', to: 'vip@shaveh360.co.il' },
@@ -121,12 +121,12 @@ export const seedRules = [
   },
   {
     id: 'rule-3',
-    name: '××××× ×¢× ×¢××× ×¤×¨××× ××××¨× ×××¢×××',
+    name: 'דילוג על עמוד פרטים לחברי מועדון',
     scope: 'fill',
     enabled: false,
     combinator: 'and',
-    conditions: [{ fieldKey: 'member', op: 'eq', value: '××, ×××¨× ×××¢×××' }],
-    actions: [{ type: 'jump_page', page: 3, label: '3 Â· ×¡××××' }],
+    conditions: [{ fieldKey: 'member', op: 'eq', value: 'כן, חברי מועדון' }],
+    actions: [{ type: 'jump_page', page: 3, label: '3 · סיכום' }],
   },
 ]
 
@@ -136,17 +136,17 @@ export const seedSubmissions = [
   {
     id: 1128,
     values: {
-      member: '××, ×××¨× ×××¢×××',
+      member: 'כן, חברי מועדון',
       participants: '7',
-      first_name: '× ××¢×',
-      last_name: '××¨×§',
+      first_name: 'נועה',
+      last_name: 'ברק',
       email: 'noa@acme.co.il',
-      track: '×××¦×¨ ×× ××××',
-      terms: '×§×¨××ª× ××× × ×××©×¨/×ª ××ª ×ª× ×× ×××©×ª×ª×¤××ª',
+      track: 'מוצר וניהול',
+      terms: 'קראתי ואני מאשר/ת את תנאי ההשתתפות',
     },
-    name: '× ××¢× ××¨×§',
+    name: 'נועה ברק',
     email: 'noa@acme.co.il',
-    track: '×××¦×¨ ×× ××××',
+    track: 'מוצר וניהול',
     tags: [{ text: 'VIP', color: 'peach' }],
     status: 'new',
     notes: '',
@@ -155,17 +155,17 @@ export const seedSubmissions = [
   {
     id: 1127,
     values: {
-      member: '×¢×××× ××',
+      member: 'עדיין לא',
       participants: '1',
-      first_name: '××××¨',
-      last_name: '×××',
+      first_name: 'אמיר',
+      last_name: 'כהן',
       email: 'amir.c@gmail.com',
-      track: '×¤××ª×× ××× ××¡×',
-      terms: '×§×¨××ª× ××× × ×××©×¨/×ª ××ª ×ª× ×× ×××©×ª×ª×¤××ª',
+      track: 'פיתוח והנדסה',
+      terms: 'קראתי ואני מאשר/ת את תנאי ההשתתפות',
     },
-    name: '××××¨ ×××',
+    name: 'אמיר כהן',
     email: 'amir.c@gmail.com',
-    track: '×¤××ª×× ××× ××¡×',
+    track: 'פיתוח והנדסה',
     tags: [],
     status: 'in_progress',
     notes: '',
@@ -174,38 +174,38 @@ export const seedSubmissions = [
   {
     id: 1126,
     values: {
-      member: '×¢×××× ××',
+      member: 'עדיין לא',
       participants: '1',
-      first_name: '×× ×',
-      last_name: '×××',
+      first_name: 'דנה',
+      last_name: 'לוי',
       email: 'dana@studio-d.co',
-      track: '×¢××¦×× ×-UX',
-      design_workshop: '×¤×¨×××××××¤×× × ×-Figma',
-      notes: '××§××§× ××××©××¨ ×¡×××× ×××ª',
-      terms: '×§×¨××ª× ××× × ×××©×¨/×ª ××ª ×ª× ×× ×××©×ª×ª×¤××ª',
+      track: 'עיצוב ו-UX',
+      design_workshop: 'פרוטוטייפינג ב-Figma',
+      notes: 'זקוקה לאישור סטודנטית',
+      terms: 'קראתי ואני מאשר/ת את תנאי ההשתתפות',
     },
-    name: '×× × ×××',
+    name: 'דנה לוי',
     email: 'dana@studio-d.co',
-    track: '×¢××¦×× ×-UX',
-    tags: [{ text: '×¡×××× ×××ª', color: 'purple' }],
+    track: 'עיצוב ו-UX',
+    tags: [{ text: 'סטודנטית', color: 'purple' }],
     status: 'done',
-    notes: '× ×©×× ×××©××¨ ×× ××',
+    notes: 'נשלח אישור הנחה',
     submittedAt: minutesAgo(64),
   },
   {
     id: 1125,
     values: {
-      member: '××, ×××¨× ×××¢×××',
+      member: 'כן, חברי מועדון',
       participants: '2',
-      first_name: '×××¡×',
-      last_name: '×××¨××',
+      first_name: 'יוסי',
+      last_name: 'מזרחי',
       email: 'yossi@tlv-events.com',
-      track: '×××¦×¨ ×× ××××',
-      terms: '×§×¨××ª× ××× × ×××©×¨/×ª ××ª ×ª× ×× ×××©×ª×ª×¤××ª',
+      track: 'מוצר וניהול',
+      terms: 'קראתי ואני מאשר/ת את תנאי ההשתתפות',
     },
-    name: '×××¡× ×××¨××',
+    name: 'יוסי מזרחי',
     email: 'yossi@tlv-events.com',
-    track: '×××¦×¨ ×× ××××',
+    track: 'מוצר וניהול',
     tags: [],
     status: 'done',
     notes: '',
@@ -215,7 +215,7 @@ export const seedSubmissions = [
 
 export const seedNotif = {
   confirmEnabled: true,
-  subject: '×§×××× × ××ª ××¨×©××ª× ××× ×¡, {{first_name}} ð',
+  subject: 'קיבלנו את הרשמתך לכנס, {{first_name}} 🎟',
   fromAddress: 'events@shaveh360.co.il',
   attachPdf: true,
   attachIcal: true,
@@ -223,7 +223,7 @@ export const seedNotif = {
   recipients: ['michal@shaveh360.co.il', 'events@shaveh360.co.il'],
   digest: false,
   smsEnabled: true,
-  smsTemplate: '××× {{first_name}}, × ×¨×©××ª ×××¦××× ××× ×¡ ××××¦×¨ 2026! ×¤×¨××× ×××¨×××¡: {{short_url}}',
+  smsTemplate: 'היי {{first_name}}, נרשמת בהצלחה לכנס המוצר 2026! פרטים וכרטיס: {{short_url}}',
   smsReminder: true,
 }
 
@@ -234,7 +234,7 @@ export const seedNotifications = [
     channel: 'email',
     recipient: 'noa@acme.co.il',
     status: 'delivered',
-    note: '×××× ×××©××¨ ×××××',
+    note: 'מייל אישור לממלא',
     at: minutesAgo(4),
   },
   {
@@ -243,16 +243,16 @@ export const seedNotifications = [
     channel: 'email',
     recipient: 'vip@shaveh360.co.il',
     status: 'delivered',
-    note: '× ××ª×× ××¤× ×××: × ××ª×× ×¤× ×××ª VIP',
+    note: 'ניתוב לפי כלל: ניתוב פניות VIP',
     at: minutesAgo(4),
   },
   {
     id: 'ntf-3',
     submissionId: 1128,
     channel: 'sms',
-    recipient: '052-â¢â¢â¢4821',
+    recipient: '052-•••4821',
     status: 'delivered',
-    note: 'SMS ×××©××¨ ×××××',
+    note: 'SMS אישור לממלא',
     at: minutesAgo(3),
   },
 ]
@@ -273,6 +273,10 @@ export const seedSettings = {
   maxResponses: '400',
   onePerUser: true,
   passwordProtect: false,
+  thankYouTitle: '',
+  thankYouMessage: '',
+  redirectUrl: '',
+  redirectDelay: '3',
 }
 
 export const seedWebhooks = [
@@ -302,7 +306,7 @@ export const seedWebhookLogs = [
     event: 'submission.created',
     status: 200,
     attempt: 1,
-    payload: '{"event":"submission.created","submission":{"id":1128,"track":"×××¦×¨ ×× ××××"}}',
+    payload: '{"event":"submission.created","submission":{"id":1128,"track":"מוצר וניהול"}}',
     at: seedLogTime(4),
   },
   {
@@ -312,7 +316,7 @@ export const seedWebhookLogs = [
     event: 'submission.created',
     status: 500,
     attempt: 1,
-    payload: '{"event":"submission.created","submission":{"id":1127,"track":"×¤××ª×× ××× ××¡×"}}',
+    payload: '{"event":"submission.created","submission":{"id":1127,"track":"פיתוח והנדסה"}}',
     at: seedLogTime(22),
   },
   {
@@ -322,7 +326,7 @@ export const seedWebhookLogs = [
     event: 'submission.created',
     status: 200,
     attempt: 2,
-    payload: '{"event":"submission.created","submission":{"id":1127,"track":"×¤××ª×× ××× ××¡×"}}',
+    payload: '{"event":"submission.created","submission":{"id":1127,"track":"פיתוח והנדסה"}}',
     at: seedLogTime(21),
   },
 ]
@@ -334,8 +338,8 @@ export const DEMO_EMAILS = ['israel@gmail.com', 'israel@outlook.com', 'demo@shav
 export function defaultNotifFor(name) {
   return {
     ...seedNotif,
-    subject: `×§×××× × ××ª ××¤× ××× ×©×× â ${name}`,
-    smsTemplate: `××× {{first_name}}, ×§×××× × ××ª ××¤× ××× ×©×× ×-${name}. × ××××¨ ×××× ××§×¨××: {{short_url}}`,
+    subject: `קיבלנו את הפנייה שלך — ${name}`,
+    smsTemplate: `היי {{first_name}}, קיבלנו את הפנייה שלך ב-${name}. נחזור אליך בקרוב: {{short_url}}`,
   }
 }
 
@@ -379,7 +383,7 @@ export function buildSeedForms() {
     id: FORM_ID,
     slug: FORM_SLUG,
     name: FORM_NAME,
-    folder: '×××¨××¢××',
+    folder: 'אירועים',
     icon: 'ticket',
     status: 'published',
     version: 2,
@@ -392,26 +396,26 @@ export function buildSeedForms() {
   }
   return [
     conference,
-    simpleForm('hr-onboarding', 'hr-onboarding', '×§××××ª ×¢××× ×××© â ××©××× ×× ××©', 'HR', 'hand', 'published', [
-      f('first_name', '×©× ×¤×¨××', 'short_text', { required: true, half: true }),
-      f('last_name', '×©× ××©×¤××', 'short_text', { required: true, half: true }),
-      f('id_number', '×ª×¢×××ª ××××ª', 'id_number', { required: true, placeholder: '9 ×¡×¤×¨××ª' }),
-      f('email', '××ª×××ª ××××', 'email', { required: true, placeholder: 'name@company.co.il' }),
-      f('start_date', '×ª××¨×× ×ª××××ª ×¢××××', 'date', { required: true }),
+    simpleForm('hr-onboarding', 'hr-onboarding', 'קליטת עובד חדש — משאבי אנוש', 'HR', 'hand', 'published', [
+      f('first_name', 'שם פרטי', 'short_text', { required: true, half: true }),
+      f('last_name', 'שם משפחה', 'short_text', { required: true, half: true }),
+      f('id_number', 'תעודת זהות', 'id_number', { required: true, placeholder: '9 ספרות' }),
+      f('email', 'כתובת מייל', 'email', { required: true, placeholder: 'name@company.co.il' }),
+      f('start_date', 'תאריך תחילת עבודה', 'date', { required: true }),
     ]),
-    simpleForm('contact', 'contact-us', '×¦××¨ ×§×©×¨ â ××ª×¨ ××××¨×', '××××¨××ª', 'phone', 'published', [
-      f('first_name', '×©× ×××', 'short_text', { required: true }),
-      f('email', '××ª×××ª ××××', 'email', { required: true }),
-      f('phone', '×××¤××', 'phone'),
-      f('notes', '××× × ××× ××¢×××¨?', 'long_text', { required: true }),
+    simpleForm('contact', 'contact-us', 'צור קשר — אתר החברה', 'מכירות', 'phone', 'published', [
+      f('first_name', 'שם מלא', 'short_text', { required: true }),
+      f('email', 'כתובת מייל', 'email', { required: true }),
+      f('phone', 'טלפון', 'phone'),
+      f('notes', 'איך נוכל לעזור?', 'long_text', { required: true }),
     ]),
-    simpleForm('nps-q3', 'nps-q3', '××©×× ××§××××ª Q3', '××©××', 'file', 'draft', [
-      f('rating', '×¢× ××× ×ª××××¦× ×¢××× ×?', 'rating', { required: true }),
-      f('notes', '×¡×¤×¨× ×× × ×××', 'long_text'),
+    simpleForm('nps-q3', 'nps-q3', 'משוב לקוחות Q3', 'משוב', 'file', 'draft', [
+      f('rating', 'עד כמה תמליצו עלינו?', 'rating', { required: true }),
+      f('notes', 'ספרו לנו למה', 'long_text'),
     ]),
-    simpleForm('webinar-june', 'webinar-june', '××¨×©×× ×××××× ×¨ â ××× ×', '×××¨××¢××', 'graduation', 'closed', [
-      f('first_name', '×©× ×××', 'short_text', { required: true }),
-      f('email', '××ª×××ª ××××', 'email', { required: true }),
+    simpleForm('webinar-june', 'webinar-june', 'הרשמה לוובינר — יוני', 'אירועים', 'graduation', 'closed', [
+      f('first_name', 'שם מלא', 'short_text', { required: true }),
+      f('email', 'כתובת מייל', 'email', { required: true }),
     ]),
   ]
 }
@@ -421,9 +425,9 @@ export function buildSeedDb() {
     workspaces: [
       {
         id: DEMO_WORKSPACE_ID,
-        name: '×©××× ×¢×¡×§×× 360',
+        name: 'שווה עסקים 360',
         ownerEmail: DEMO_EMAILS[0],
-        ownerName: '××©×¨×× ×©×××',
+        ownerName: 'ישראל שווה',
         members: DEMO_EMAILS,
         createdAt: new Date().toISOString(),
       },

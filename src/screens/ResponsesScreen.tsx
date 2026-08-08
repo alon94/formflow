@@ -169,8 +169,8 @@ export default function ResponsesScreen() {
 
   /* export respects the active filters (spec §4.6.3) */
   useEffect(() => {
-    setExportHandler(() => {
-      api.downloadExport(formId, filters, 'xlsx').catch(() => {})
+    setExportHandler((format) => {
+      api.downloadExport(formId, filters, format).catch(() => {})
     })
     return () => setExportHandler(null)
   }, [formId, filters, setExportHandler])

@@ -8,8 +8,10 @@ import { AvatarMenu, ThemeButton } from '../components/AdminTopbar'
 import { api } from '../lib/api'
 import { useStore } from '../lib/store'
 
+export type ExportFormat = 'xlsx' | 'csv'
+
 export interface FormShellContext {
-  setExportHandler: (fn: (() => void) | null) => void
+  setExportHandler: (fn: ((format: ExportFormat) => void) | null) => void
 }
 
 function TabLink({ to, children }: { to: string; children: React.ReactNode }) {
@@ -48,7 +50,7 @@ export default function FormShell() {
   const location = useLocation()
   const params = useParams()
   const [showPublish, setShowPublish] = useState(false)
-  const exportRef = useRef<(() => void) | null>(null)
+  const exportRef = useRef<((format: ExportFormat) => void) | null>(null)
 
   /* the shell owns loading the routed form into the store */
   useEffect(() => {
@@ -62,9 +64,12 @@ export default function FormShell() {
 
   const testSend = useMutation({ mutationFn: () => api.testNotification('email') })
 
-  const setExportHandler = useCallback((fn: (() => void) | null) => {
-    exportRef.current = fn
-  }, [])
+  const setExportHandler = useCallback(
+    (fn: ((format: ExportFormat) => void) | null) => {
+      exportRef.current = fn
+    },
+    [],
+  )
 
   const section = location.pathname.split('/').pop() ?? 'build'
   const published = formStatus === 'published'
@@ -131,9 +136,16 @@ export default function FormShell() {
         <button
           type="button"
           className="btn btn-navy"
-          onClick={() => exportRef.current?.()}
+          onClick={() => exportRef.current?.('xlsx')}
         >
           <Download size={14} aria-hidden="true" /> ייצוא אקסל
+        </button>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          onClick={() => exportRef.current?.('csv')}
+        >
+          <Download size={14} aria-hidden="true" /> ייצוא CSV
         </button>
       </>
     ),
