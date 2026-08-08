@@ -21,7 +21,7 @@ const PAGE_TITLES: Record<number, string> = {
 type Values = Record<string, string>
 
 export default function PublicFormScreen() {
-  const { fields, rules, branding, formName, notif, formId, loadForm } = useStore()
+  const { fields, rules, branding, formName, notif, formId, loadForm, settings } = useStore()
   const params = useParams()
   const isConference = formName.includes('כנס')
 
@@ -50,6 +50,8 @@ export default function PublicFormScreen() {
     [fields],
   )
   const [page, setPage] = useState(1)
+  /* anti-spam honeypot: real users never fill this hidden field */
+  const [honeypot, setHoneypot] = useState('')
   const [visited, setVisited] = useState<number[]>([])
   const [values, setValues] = useState<Values>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -59,6 +61,18 @@ export default function PublicFormScreen() {
     notifications: NotificationEntry[]
     demo?: boolean
   } | null>(null)
+
+  /* optional auto-redirect after a successful submission (form settings) */
+  useEffect(() => {
+    if (!result || result.demo) return
+    const url = (settings.redirectUrl ?? '').trim()
+    if (!url) return
+    const delay = Math.max(0, Number(settings.redirectDelay) || 0) * 1000
+    const t = window.setTimeout(() => {
+      window.location.href = url
+    }, delay)
+    return () => window.clearTimeout(t)
+  }, [result, settings.redirectUrl, settings.redirectDelay])
   const inputRefs = useRef<Record<string, HTMLElement | null>>({})
   const restored = useRef(false)
 
@@ -208,6 +222,26 @@ export default function PublicFormScreen() {
     if (!validatePage()) return
     const isLast = page === pages[pages.length - 1]
     if (isLast) {
+      /* silently drop bot submissions that filled the honeypot */
+      if (honeypot.trim()) {
+        setResult({
+          submission: {
+            id: 0,
+            values,
+            name: '',
+            email: '',
+            track: '',
+            tags: [],
+            status: 'new',
+            notes: '',
+            submittedAt: new Date().toISOString(),
+          },
+          notifications: [],
+          demo: true,
+        })
+        window.scrollTo({ top: 0 })
+        return
+      }
       submit.mutate()
       return
     }
@@ -459,7 +493,7 @@ export default function PublicFormScreen() {
           <span className="success-circle">
             <Check size={32} strokeWidth={3} />
           </span>
-          <h1>ההרשמה נקלטה!</h1>
+          <h1>{(settings.thankYouTitle ?? '').trim() || 'ההרשמה נקלטה!'}</h1>
           <span className="sub-id-chip">הרשמה מס׳ {result.submission.id}</span>
           {result.demo && (
             <div className="demo-hint">
@@ -467,7 +501,10 @@ export default function PublicFormScreen() {
             </div>
           )}
           <p>
-            {isConference ? 'נתראה ב-12 בנובמבר במרכז הכנסים תל אביב 🎉' : 'תודה שמילאתם — הפרטים נקלטו אצלנו 🎉'}
+            {(settings.thankYouMessage ?? '').trim() ||
+              (isConference
+                ? 'נתראה ב-12 בנובמבר במרכז הכנסים תל אביב 🎉'
+                : 'תודה שמילאתם — הפרטים נקלטו אצלנו 🎉')}
           </p>
           {result.notifications.length > 0 && (
             <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -492,6 +529,23 @@ export default function PublicFormScreen() {
             next()
           }}
         >
+          {/* honeypot field — hidden from humans, catches bots */}
+          <input
+            type="text"
+            name="company_website"
+            tabIndex={-1}
+            autoComplete="off"
+            value={honeypot}
+            onChange={(e) => setHoneypot(e.target.value)}
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              left: '-9999px',
+              width: 1,
+              height: 1,
+              opacity: 0,
+            }}
+          />
           <div>
             {isConference && (
               <span className="pub-event-tag">🎟 12 בנובמבר · מרכז הכנסים תל אביב</span>
