@@ -11,7 +11,7 @@ import type {
   WebhookLog,
 } from './types'
 
-import { supabaseConfigured } from './supabase'
+import { supabaseConfigured, supabase } from './supabase'
 
 const BASE = '/api/v1'
 const USER_KEY = 'formflow.user'
@@ -80,7 +80,13 @@ async function req<T>(path: string, init: RequestInit | undefined, local: () => 
  * With Supabase configured the fallback is the real cloud backend (multi-tenant
  * Postgres + RLS); otherwise the localStorage demo backend. */
 async function lb() {
-  if (supabaseConfigured()) return (await import('./supabaseBackend')).supabaseBackend
+  if (supabaseConfigured()) {
+    // Only use the Supabase cloud backend when a real auth session exists.
+    // Without a session its calls (requireUserId/resolveWorkspace) throw, so
+    // fall back to the local backend instead of failing silently.
+    const { data } = await supabase.auth.getSession()
+    if (data.session) return (await import('./supabaseBackend')).supabaseBackend
+  }
   return (await import('./localBackend')).localBackend
 }
 
