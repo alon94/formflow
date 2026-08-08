@@ -62,7 +62,12 @@ async function req<T>(path: string, init: RequestInit | undefined, local: () => 
       localMode = true
       return await local()
     }
-    if (!res.ok) throw new Error(`API ${res.status} — ${path}`)
+    if (!res.ok) {
+      // Server reachable but returned an error status (e.g. 404/405/503 when no
+      // API function is deployed). Treat as "no backend" and use the fallback.
+      localMode = true
+      return await local()
+    }
     return (await res.json()) as T
   } catch (e) {
     if (e instanceof SubmitValidationError) throw e
