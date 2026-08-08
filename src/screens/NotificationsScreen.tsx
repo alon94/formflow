@@ -480,6 +480,66 @@ function PublishPanel() {
           שמירת טיוטה לממלא פעילה — ממלאים יכולים להמשיך מאוחר יותר מאותו מכשיר.
         </div>
       </section>
+      <section className="ntf-card">
+        <div className="ntf-title" style={{ fontSize: 15 }}>
+          עמוד תודה והפניה
+        </div>
+        <div className="limits-grid">
+          <div className="set-group" style={{ gridColumn: '1 / -1' }}>
+            <label className="field-label" htmlFor="ty-title">
+              כותרת עמוד התודה
+            </label>
+            <input
+              id="ty-title"
+              className="text-input"
+              placeholder="תודה שמילאתם! 🎉"
+              value={settings.thankYouTitle}
+              onChange={(e) => setSettings({ thankYouTitle: e.target.value })}
+            />
+          </div>
+          <div className="set-group" style={{ gridColumn: '1 / -1' }}>
+            <label className="field-label" htmlFor="ty-msg">
+              הודעת תודה
+            </label>
+            <textarea
+              id="ty-msg"
+              className="text-input"
+              rows={2}
+              placeholder="הפרטים נקלטו אצלנו ונחזור אליכם בהקדם."
+              value={settings.thankYouMessage}
+              onChange={(e) => setSettings({ thankYouMessage: e.target.value })}
+            />
+          </div>
+          <div className="set-group" style={{ gridColumn: '1 / -1' }}>
+            <label className="field-label" htmlFor="redir-url">
+              הפניה אוטומטית לאחר שליחה (URL)
+            </label>
+            <input
+              id="redir-url"
+              className="text-input"
+              inputMode="url"
+              placeholder="https://example.co.il/thanks"
+              value={settings.redirectUrl}
+              onChange={(e) => setSettings({ redirectUrl: e.target.value })}
+            />
+          </div>
+          <div className="set-group">
+            <label className="field-label" htmlFor="redir-delay">
+              השהיה לפני הפניה (שניות)
+            </label>
+            <input
+              id="redir-delay"
+              className="text-input"
+              inputMode="numeric"
+              value={settings.redirectDelay}
+              onChange={(e) => setSettings({ redirectDelay: e.target.value })}
+            />
+          </div>
+        </div>
+        <div className="ntf-sub">
+          אם הוזן URL — הממלא יופנה אליו אוטומטית לאחר השליחה. אחרת יוצג עמוד התודה.
+        </div>
+      </section>
     </>
   )
 }
