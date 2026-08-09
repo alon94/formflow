@@ -1,5 +1,5 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
-import { useStore } from './lib/store'
+import { useAuthGate } from './lib/useAuthGate'
 import BuildScreen from './screens/BuildScreen'
 import DesignScreen from './screens/DesignScreen'
 import FormShell from './screens/FormShell'
@@ -11,16 +11,29 @@ import NewFormWizard from './screens/NewFormWizard'
 import OnboardingScreen from './screens/OnboardingScreen'
 import NotificationsScreen from './screens/NotificationsScreen'
 import PublicFormScreen from './screens/PublicFormScreen'
+import ResetPasswordScreen from './screens/ResetPasswordScreen'
 import ResponsesScreen from './screens/ResponsesScreen'
 import TemplateBuilderScreen from './screens/TemplateBuilderScreen'
 import TemplatesScreen from './screens/TemplatesScreen'
 import WorkspacesScreen from './screens/WorkspacesScreen'
 
-/* clear customer separation: the admin area requires a signed-in user (spec ch.3) */
+function AuthSplash() {
+  return (
+    <div className="flow-root" dir="rtl">
+      <div className="flow-sub" role="status">
+        רגע, בודקים את ההתחברות...
+      </div>
+    </div>
+  )
+}
+
+/* clear customer separation: the admin area requires a signed-in user (spec ch.3).
+   The live Supabase session is the source of truth - see src/lib/useAuthGate.ts */
 function RequireAuth({ children }: { children: React.ReactNode }) {
-  const { user } = useStore()
+  const phase = useAuthGate()
   const location = useLocation()
-  if (!user) {
+  if (phase === 'checking') return <AuthSplash />
+  if (phase === 'anonymous') {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />
   }
   return children
@@ -38,6 +51,7 @@ export default function App() {
         }
       />
       <Route path="/login" element={<LoginScreen />} />
+      <Route path="/reset-password" element={<ResetPasswordScreen />} />
       <Route
         path="/onboarding"
         element={
