@@ -226,12 +226,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setOnboardingDone(localStorage.getItem(`${ONBOARDING_KEY}.${u.email}`) === '1')
   }, [])
 
+  /* guards the sign-out below against re-entrancy */
+  const signingOut = useRef(false)
+
   const logout = useCallback(() => {
     setUser(null)
     setOnboardingDone(false)
     localStorage.removeItem(USER_KEY)
-    /* also terminate the Supabase session (real auth) */
-    import('./supabase').then(({ supabase }) => supabase.auth.signOut()).catch(() => {})
+    /* Terminate the Supabase session too — but never re-enter signOut(): the
+     * auth gate calls logout() again when it receives SIGNED_OUT, and a nested
+     * sign-out deadlocks supabase-js' internal auth lock, which used to leave
+     * the app stuck forever on the "checking" splash. */
+    if (signingOut.current) return
+    signingOut.current = true
+    void import('./supabase')
+      .then(({ supabase }) => supabase.auth.signOut())
+      .catch(() => {})
+      .finally(() => {
+        signingOut.current = false
+      })
   }, [])
 
   const completeOnboarding = useCallback(() => {
@@ -331,6 +344,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     try {
       const list = (await api.getWorkspaces()) as WorkspaceInfo[]
       setWorkspaces(list)
+      /* the business profile lives in the cloud: once it has been filled in —
+       * on any device or browser — never ask for it again */
+      if (list.some((w) => (w.businessName ?? '').trim().length > 0)) {
+        setOnboardingDone(true)
+        localStorage.setItem(ONBOARDING_KEY, '1')
+      }
       setActiveWorkspaceId((prev) => {
         if (prev && list.some((w) => w.id === prev)) return prev
         const next = list[0]?.id ?? null

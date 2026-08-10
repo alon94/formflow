@@ -59,6 +59,7 @@ export default function OnboardingScreen() {
   const [inviteInput, setInviteInput] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [done, setDone] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   const addInvite = () => {
     const email = inviteInput.trim()
@@ -76,27 +77,40 @@ export default function OnboardingScreen() {
     return Object.keys(next).length === 0
   }
 
-  const persist = () => {
-    /* save the customer profile onto the workspace (server or local) */
-    api
-      .updateWorkspace({
-        name: `${businessName.trim()} — FormFlow`,
-        businessName: businessName.trim(),
-        phone: phone.trim(),
-        domain,
-        goal,
-      })
-      .catch(() => {})
+  const persist = async () => {
+    const biz = businessName.trim()
+    /* Save the customer profile onto the workspace (cloud or local). Skipping
+     * with an empty business name must never erase a profile saved earlier. */
+    if (biz) {
+      try {
+        await api.updateWorkspace({
+          name: `${biz} — FormFlow`,
+          businessName: biz,
+          phone: phone.trim(),
+          domain,
+          goal,
+        })
+      } catch {
+        /* offline: the local flag below still marks onboarding as done */
+      }
+    }
     completeOnboarding()
   }
 
-  const next = () => {
+  const next = async () => {
     if (step === 1 && !validateStep1()) return
-    if (step < TOTAL) setStep(step + 1)
-    else {
-      persist()
-      setDone(true)
+    if (step < TOTAL) {
+      setStep(step + 1)
+      return
     }
+    /* wait for the save, so the profile is really stored before we celebrate */
+    setSaving(true)
+    try {
+      await persist()
+    } finally {
+      setSaving(false)
+    }
+    setDone(true)
   }
 
   return (
@@ -282,9 +296,15 @@ export default function OnboardingScreen() {
           )}
 
           <div className="flow-footer">
-            <button type="button" className="pub-cta" style={{ color: '#12265a' }} onClick={next}>
-              {step === TOTAL ? 'סיום ←' : 'להמשך ←'}
-            </button>
+            <button
+                type="button"
+                className="pub-cta"
+                style={{ color: '#12265a' }}
+                disabled={saving}
+                onClick={() => void next()}
+              >
+                {saving ? 'שומר...' : step === TOTAL ? 'סיום ←' : 'להמשך ←'}
+              </button>
             {step > 1 && (
               <button type="button" className="pub-back" onClick={() => setStep(step - 1)}>
                 → חזרה
@@ -294,8 +314,7 @@ export default function OnboardingScreen() {
               type="button"
               className="flow-skip"
               onClick={() => {
-                persist()
-                navigate('/')
+                void persist().then(() => navigate('/'))
               }}
             >
               דילוג בינתיים

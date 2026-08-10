@@ -276,9 +276,16 @@ async function findTemplate(id: string): Promise<{ rowId: string; meta: ClientMe
 export const supabaseBackend = {
   async createSession(email: string, name: string): Promise<SessionInfo> {
     const ws = await resolveWorkspace({ name, create: true })
-    /* keep owner details fresh */
-    const meta: Record<string, string> = { ownerName: name }
-    await supabase.from('clients').update({ contact_email: email, meta: { ...meta } }).eq('id', ws.id)
+    /* Keep the owner details fresh, but MERGE into the stored meta instead of
+     * replacing it: overwriting used to wipe the business profile (name, phone,
+     * domain, goal, custom templates) on every sign-in, which is why onboarding
+     * kept asking for the business details again. */
+    const { data: currentRow } = await supabase.from('clients').select('meta').eq('id', ws.id).single()
+    const meta: ClientMeta = {
+      ...(((currentRow as { meta: ClientMeta | null } | null)?.meta) ?? {}),
+      ownerName: name,
+    }
+    await supabase.from('clients').update({ contact_email: email, meta }).eq('id', ws.id)
     const { count } = await supabase
       .from('forms')
       .select('id', { count: 'exact', head: true })
@@ -288,17 +295,17 @@ export const supabaseBackend = {
 
   async updateWorkspace(patch: { name?: string; businessName?: string; phone?: string; domain?: string; goal?: string; website?: string }): Promise<SessionInfo['workspace']> {
     const ws = await resolveWorkspace({ create: true })
-    const upd: Record<string, unknown> = {}
-    if (patch.name) upd.name = patch.name
-    const meta: Record<string, string | undefined> = {
-      ownerName: ws.ownerName,
-      businessName: patch.businessName ?? ws.businessName,
-      phone: patch.phone ?? ws.phone,
-      domain: patch.domain ?? ws.domain,
-      goal: patch.goal ?? ws.goal,
-      website: patch.website,
+    /* merge with the stored meta so unrelated keys (custom templates) and
+     * previously saved profile fields survive a partial update */
+    const { data: currentRow } = await supabase.from('clients').select('meta').eq('id', ws.id).single()
+    const meta: ClientMeta = { ...(((currentRow as { meta: ClientMeta | null } | null)?.meta) ?? {}) }
+    if (ws.ownerName) meta.ownerName = ws.ownerName
+    for (const key of ['businessName', 'phone', 'domain', 'goal', 'website'] as const) {
+      const value = patch[key]
+      if (typeof value === 'string' && value.trim()) meta[key] = value.trim()
     }
-    upd.meta = meta
+    const upd: Record<string, unknown> = { meta }
+    if (patch.name && patch.name.trim()) upd.name = patch.name.trim()
     const { error } = await supabase.from('clients').update(upd).eq('id', ws.id)
     if (error) throw new Error(error.message)
     return { ...ws, ...patch, name: (patch.name as string) ?? ws.name }
