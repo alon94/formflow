@@ -16,6 +16,12 @@ type Mode = 'login' | 'signup' | 'forgot'
 
 const RETURN_KEY = 'formflow.auth-return'
 
+/* Microsoft (Azure) SSO is not enabled in the Supabase project, and clicking
+ * the button used to dump the visitor on a raw JSON error page
+ * ('Unsupported provider: provider is not enabled'). Hide it until the
+ * provider is configured, then set VITE_ENABLE_MICROSOFT_SSO=1. */
+const MICROSOFT_SSO = import.meta.env.VITE_ENABLE_MICROSOFT_SSO === '1'
+
 function GoogleIcon() {
   return (
     <svg width="17" height="17" viewBox="0 0 48 48" aria-hidden="true">
@@ -85,9 +91,19 @@ export default function LoginScreen() {
     login(u)
     sessionStorage.removeItem(RETURN_KEY)
     try {
-      /* creates the customer's workspace on first login (clear tenant separation) */
-      const session = await api.createSession(u.email, u.name)
-      navigate(session.formsCount === 0 ? '/onboarding' : returnTo, { replace: true })
+      /* creates the customer's workspace on first login (clear tenant
+       * separation). Never wait forever: a hung request must not leave the
+       * user staring at a dead 'מתחבר...' button. */
+      const session = await Promise.race([
+        api.createSession(u.email, u.name),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('session timeout')), 8000),
+        ),
+      ])
+      /* only onboard when there is genuinely nothing yet — a saved business
+       * profile means the details were already filled in once */
+      const needsOnboarding = session.formsCount === 0 && !session.workspace.businessName
+      navigate(needsOnboarding ? '/onboarding' : returnTo, { replace: true })
     } catch {
       navigate(onboardingDone ? returnTo : '/onboarding', { replace: true })
     }
@@ -218,14 +234,16 @@ export default function LoginScreen() {
               >
                 <GoogleIcon /> Google
               </button>
-              <button
-                type="button"
-                className="sso-btn"
-                disabled={busy}
-                onClick={() => sso('Microsoft')}
-              >
-                <MicrosoftIcon /> Microsoft
-              </button>
+              {MICROSOFT_SSO && (
+                <button
+                  type="button"
+                  className="sso-btn"
+                  disabled={busy}
+                  onClick={() => sso('Microsoft')}
+                >
+                  <MicrosoftIcon /> Microsoft
+                </button>
+              )}
             </div>
             <div className="or-divider">או עם מייל</div>
           </>
